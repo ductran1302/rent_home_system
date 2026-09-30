@@ -1,0 +1,29 @@
+# Java
+backend/target/
+*.class
+*.jar
+!mvnw.jar
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Uploads & env
+uploads/
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+Thumbs.db
+.DS_Store
