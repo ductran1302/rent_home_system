@@ -57,3 +57,10 @@ export function getErrorMessage(error: unknown): string {
   }
   return 'Đã có lỗi xảy ra, vui lòng thử lại'
 }
+
+export function getErrorStatus(error: unknown): number | undefined {
+  if (axios.isAxiosError(error)) {
+    return error.response?.status
+  }
+  return undefined
+}

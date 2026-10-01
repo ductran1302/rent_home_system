@@ -45,4 +45,10 @@ public class UserAccount extends BaseEntity {
 
     @Column(name = "manager_end_date")
     private LocalDate managerEndDate;
+
+    @Column(name = "area_admin", length = 100)
+    private String areaAdmin;
+
+    @Column(name = "is_root", nullable = false)
+    private boolean root;
 }

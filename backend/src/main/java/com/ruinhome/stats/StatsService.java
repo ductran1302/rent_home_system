@@ -37,7 +37,10 @@ public class StatsService {
         var account = currentUserService.account();
         Long ownerScope = null;
         Long userScope = null;
-        if (account.getRole() == Role.MANAGER) {
+        String areaScope = null;
+        if (account.getRole() == Role.ADMIN) {
+            areaScope = currentUserService.areaOrNull();
+        } else if (account.getRole() == Role.MANAGER) {
             ownerScope = currentUserService.personId();
         } else if (account.getRole() == Role.USER) {
             userScope = currentUserService.personIdOrNull();
@@ -52,17 +55,17 @@ public class StatsService {
         long roomCount = 0;
         long vacantRoomCount = 0;
         if (account.getRole() != Role.USER) {
-            houseCount = houseRepository.countActiveForScope(ownerScope);
-            roomCount = roomRepository.countActiveForScope(ownerScope);
-            vacantRoomCount = roomRepository.countVacantForScope(ownerScope);
+            houseCount = houseRepository.countActiveForScope(ownerScope, areaScope);
+            roomCount = roomRepository.countActiveForScope(ownerScope, areaScope);
+            vacantRoomCount = roomRepository.countVacantForScope(ownerScope, areaScope);
         }
 
         long activeContractCount = userScope != null
                 ? contractRepository.countActiveForPerson(userScope)
-                : contractRepository.countActiveForScope(ownerScope);
+                : contractRepository.countActiveForScope(ownerScope, areaScope);
 
-        long unpaidInvoiceCount = invoiceRepository.countUnpaidForPeriod(period, ownerScope, userScope);
-        long outstandingDebt = invoiceRepository.sumDebtForPeriod(period, ownerScope, userScope);
+        long unpaidInvoiceCount = invoiceRepository.countUnpaidForPeriod(period, ownerScope, userScope, areaScope);
+        long outstandingDebt = invoiceRepository.sumDebtForPeriod(period, ownerScope, userScope, areaScope);
 
         return new StatsResponse(houseCount, roomCount, vacantRoomCount, activeContractCount,
                 unpaidInvoiceCount, outstandingDebt);

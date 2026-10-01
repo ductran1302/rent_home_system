@@ -16,12 +16,17 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
 
     boolean existsByIdNumberAndActiveTrue(String idNumber);
 
+    @Query("select p from Person p where (:areaScope is null or p.areaAdmin = :areaScope)")
+    Page<Person> findAllInArea(@Param("areaScope") String areaScope, Pageable pageable);
+
     @Query("""
             select p from Person p
             where p.active = true
+              and (:areaScope is null or p.areaAdmin = :areaScope)
               and (lower(p.fullName) like lower(concat('%', :q, '%'))
                    or p.idNumber like concat('%', :q, '%')
                    or p.phone like concat('%', :q, '%'))
             """)
-    Page<Person> search(@Param("q") String q, Pageable pageable);
+    Page<Person> searchInArea(@Param("q") String q, @Param("areaScope") String areaScope,
+                              Pageable pageable);
 }

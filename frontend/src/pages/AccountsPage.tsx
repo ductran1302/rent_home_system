@@ -20,6 +20,7 @@ import dayjs from 'dayjs'
 import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
 import { formatDate } from '../utils/format'
+import { USERNAME_PATTERN } from '../utils/validation'
 
 interface UserRow {
   id: number
@@ -60,8 +61,6 @@ const ROLE_COLORS: Record<string, string> = {
   MANAGER: 'green',
   USER: 'default',
 }
-
-const USERNAME_PATTERN = /^[A-Za-z0-9._-]{3,100}$/
 
 export default function AccountsPage() {
   const { me } = useAuth()
@@ -151,7 +150,7 @@ export default function AccountsPage() {
 
   const isSelfEdit = editing != null && editing.username === me?.username
   const roleLocked = isSelfEdit || editing?.role === 'ADMIN'
-  const needPerson = watchRole === 'MANAGER' || watchRole === 'ADMIN'
+  const needPerson = watchRole === 'MANAGER'
   const isManager = watchRole === 'MANAGER'
 
   const personOptions = (personsQuery.data ?? []).map((person) => ({
@@ -326,8 +325,8 @@ export default function AccountsPage() {
             name="personId"
             extra={
               needPerson
-                ? 'Bắt buộc với vai trò quản lý và quản trị viên'
-                : 'Có thể bỏ trống với tài khoản người dùng'
+                ? 'Bắt buộc với vai trò quản lý'
+                : 'Có thể bỏ trống với vai trò quản trị viên và người dùng'
             }
             rules={[{ required: needPerson, message: 'Vui lòng chọn hồ sơ cá nhân' }]}
           >

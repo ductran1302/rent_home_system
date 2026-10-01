@@ -58,9 +58,10 @@ public class ContractService {
 
         Long ownerScope = null;
         Long userScope = null;
+        String areaScope = null;
         var role = currentUserService.account().getRole();
         if (role == Role.ADMIN) {
-            // khong gioi han
+            areaScope = currentUserService.areaOrNull();
         } else if (role == Role.MANAGER) {
             ownerScope = currentUserService.personId();
         } else {
@@ -72,7 +73,8 @@ public class ContractService {
         }
 
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "startDate"));
-        var result = contractRepository.search(houseId, roomId, status, ownerScope, userScope, pageable);
+        var result = contractRepository.search(houseId, roomId, status, ownerScope, userScope,
+                areaScope, pageable);
         List<Contract> content = result.getContent();
         Map<Long, Map<String, Long>> feePrices = loadFeePrices(
                 content.stream().map(Contract::getId).toList());
@@ -145,6 +147,7 @@ public class ContractService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy hợp đồng"));
         var role = currentUserService.account().getRole();
         if (role == Role.ADMIN) {
+            checkHouseVisible(contract.getRoom().getHouse());
             return contract;
         }
         if (role == Role.MANAGER) {
@@ -167,6 +170,7 @@ public class ContractService {
     private void checkHouseVisible(House house) {
         var role = currentUserService.account().getRole();
         if (role == Role.ADMIN) {
+            currentUserService.checkArea(house.getAreaAdmin());
             return;
         }
         if (role == Role.USER) {

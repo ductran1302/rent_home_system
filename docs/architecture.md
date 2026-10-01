@@ -9,7 +9,7 @@ Trình duyệt (React + Ant Design)
 nginx (container web, cổng 80) ---- SPA tĩnh, proxy /api/ -> api:8080
     |
     v
-Spring Boot (container api, cổng 8080)
+Spring Boot (container api, host 8081 -> nội bộ 8080)
     |  JPA + Flyway
     v
 PostgreSQL 16 (container postgres, volume pgdata)
@@ -37,14 +37,15 @@ Luôn theo tầng `controller -> service -> repository`. Controller chỉ khai b
 
 ### Xác thực và phân quyền
 
-- `SecurityConfig`: session `STATELESS`, CSRF tắt, `POST /api/auth/login` và `GET /api/health` là hai đường công khai, phần còn lại `authenticated()`.
+- `SecurityConfig`: session `STATELESS`, CSRF tắt, `POST /api/auth/login`, `POST /api/auth/register` và `GET /api/health` là các đường công khai, phần còn lại `authenticated()`.
 - `JwtAuthenticationFilter` đọc `Authorization: Bearer`, kiểm tra chữ ký và hạn, rồi nạp tài khoản trực tiếp từ DB: tài khoản không còn, bị tắt (`enabled = false`) hoặc `MANAGER` ngoài thời hạn quản lý thì không đặt `SecurityContext` (yêu cầu nhận `401`). Vai trò lấy từ DB mỗi request, không tin claims nên thay vai trò hay tắt tài khoản có hiệu lực ngay.
 - `ManagerPeriod` (package `user`) là hàm chung kiểm tra thời hạn quản lý, dùng ở cả `login` (trả `403`) và filter.
 - `@EnableMethodSecurity` bật `@PreAuthorize`: ghi nhà và phòng chỉ `ADMIN`; ghi người, hợp đồng, hóa đơn, chỉ số là `ADMIN` hoặc `MANAGER`; biểu giá (`PUT /api/billing/fee-rates`) là cấu hình toàn hệ thống nên chỉ `ADMIN`; toàn bộ `/api/users` chỉ `ADMIN`.
-- `CurrentUserService` lấy tài khoản hiện tại; `personId()` ném `403` khi tài khoản chưa liên kết hồ sơ.
+- `CurrentUserService` lấy tài khoản hiện tại; `personId()` ném `403` khi tài khoản chưa liên kết hồ sơ; `isRoot()` báo admin gốc, `areaOrNull()` trả khu vực của admin/quản lý (`null` = không lọc, admin gốc luôn `null`), `areaForWrite()` trả khu vực gán cho dữ liệu mới tạo, `checkArea()` chặn admin thường khỏi khu vực khác bằng `403`.
 - `GET /api/auth/me` trả `username`, `role`, `personId`, `fullName` của người đăng nhập. `UserAccountRepository.findByUsername` khai `left join fetch a.person` để trả hồ sơ kèm tên trong cùng phiên làm việc, tránh `LazyInitializationException` khi truy cập ngoài transaction. Các nơi khác chỉ đọc `getId()` trên proxy nên không kích hoạt tải bổ sung.
-- Phạm vi dữ liệu: kiểm tra chủ nhà (`checkHouseVisible`) cho hợp đồng, hóa đơn, ảnh, phòng, nhà. `ADMIN` đi qua, `USER` luôn bị chặn, `MANAGER` chỉ được với nhà mà mình là chủ hoặc quản lý. Danh sách chỉ số điện nước lọc theo `owner OR manager` trong repository.
-- `AdminUserInitializer` là `CommandLineRunner`: chạy khi khởi động, tạo user `admin` nếu chưa có (mật khẩu `admin123`).
+- `POST /api/auth/register` (công khai) qua `RegisterService`: tên đăng nhập không trùng, khớp `[A-Za-z0-9._-]{3,100}`, mật khẩu `8` đến `32` ký tự; tạo tài khoản `ADMIN` (chủ cho thuê) bật sẵn, khu vực mang tên chính nó, không phải admin gốc, chưa liên kết hồ sơ (liên kết sau).
+- Phạm vi dữ liệu theo khu vực: `house.area_admin`, `person.area_admin`, `user_account.area_admin` gán khi tạo (dữ liệu cũ và bốn tài khoản sẵn có thuộc `admin`). Admin gốc bỏ qua mọi bộ lọc; admin thường bị chặn ở `checkArea` (nhà, phòng, hợp đồng, hóa đơn, chỉ số, ảnh) và bị lọc trong danh sách nhà/người/tài khoản, hợp đồng, hóa đơn, thống kê; người và tài khoản ngoài khu vực trả `404`. `USER` luôn bị chặn, `MANAGER` kiểm tra chủ/quản lý của nhà cộng với khu vực khi liệt kê người. Danh sách chỉ số điện nước lọc theo `owner OR manager OR area`.
+- `AdminUserInitializer` là `CommandLineRunner`: chạy khi khởi động, tạo user `admin` nếu chưa có (mật khẩu `admin123`, `is_root = true`, khu vực `admin`).
 - JWT ký HMAC từ `JWT_SECRET` (khóa dự phòng là chuỗi dev, phải đổi khi triển khai thật), hạn mặc định 24 giờ (`ruinhome.jwt.expiration-ms`).
 
 ### Ràng buộc nghiệp vụ
@@ -52,7 +53,7 @@ Luôn theo tầng `controller -> service -> repository`. Controller chỉ khai b
 - Một phòng chỉ có tối đa một hợp đồng `ACTIVE`: unique index `uniq_contract_active_per_room` trên `(room_id) WHERE status = 'ACTIVE'`. Trạng thái hợp đồng chỉ đổi qua service, không update trực tiếp repository.
 - Thời gian hợp đồng phải `endDate > startDate`.
 - Xoá mềm bằng cột `active = false` cho `person`, `house`, `room`, `asset`. Dòng có khoá ngoại lịch sử như `contract`, `invoice` không xoá cứng. Xoá mềm `person` trả `409` khi người vẫn còn tài khoản đang bật.
-- Quản lý tài khoản (`/api/users`): chỉ tạo được vai trò `MANAGER` và `USER`; `MANAGER` bắt buộc liên kết hồ sơ và ngày bắt đầu quản lý; không xoá cứng tài khoản, chỉ tắt `enabled`; không tự tắt hoặc tự đổi vai trò của chính mình.
+- Quản lý tài khoản (`/api/users`): chỉ tạo được vai trò `MANAGER` và `USER`; `MANAGER` bắt buộc liên kết hồ sơ và ngày bắt đầu quản lý, `ADMIN` sửa hồ sơ là tùy chọn; không xoá cứng tài khoản, chỉ tắt `enabled`; không tự tắt hoặc tự đổi vai trò của chính mình; admin thường chỉ sửa tài khoản trong khu vực mình, ngoài khu vực trả `404`.
 - Ảnh hợp đồng: 5 MB mỗi file, chỉ `jpeg` / `png` / `webp`, lưu dạng `UUID.ext` trong `upload-dir`, metadata ghi vào bảng `contract_photo`.
 - Mọi lỗi đi qua `ApiExceptionHandler`, trả `{ status, message }`, lỗi validate thêm `fields`.
 
@@ -80,6 +81,10 @@ Migration qua Flyway, chỉ thêm `V<n>__*.sql` mới.
 
 **`V7__person_audit_account_manager.sql`**: `person.created_by`, `person.updated_by`, bỏ `NOT NULL` của `person.updated_at`; `user_account.manager_start_date`, `user_account.manager_end_date` cộng seed thời hạn cho tài khoản `MANAGER` có sẵn; những người chưa từng cập nhật thì `updated_at` để `NULL`.
 
+**`V8__area_admin.sql`**: `house.area_admin`, `person.area_admin`, `user_account.area_admin` (`VARCHAR(100)`, khu vực = tên đăng nhập chủ cho thuê) và `user_account.is_root` (`BOOLEAN`, admin gốc thấy tất cả); dữ liệu sẵn có backfill về khu vực `admin`, tài khoản `admin` đánh dấu `is_root = true`.
+
+**`V9__invoice_readings.sql`**: `invoice.pre_elect_reading`, `invoice.current_elect_reading`, `invoice.pre_water_reading`, `invoice.current_water_reading` (`NUMERIC(12,2)`, số công tơ đầu kỳ và cuối kỳ của điện và nước); hóa đơn sẵn có có chỉ số và dòng tiền tương ứng được backfill từ `meter_reading` (`current` = chỉ số kỳ đó, `pre` = chỉ số trừ số lượng dòng).
+
 Quy ước cột: tiền `BIGINT` (VND không thập phân), ngày `DATE`, kỳ `VARCHAR(7)` dạng `YYYY-MM`, thời gian `TIMESTAMP`. Tên cột tiếng Anh, trùng với tên field Java.
 
 ## Luồng hóa đơn
@@ -91,14 +96,19 @@ fee_type (điện, nước, dịch vụ, ...)
    -> meter_reading (chỉ số điện nước theo phòng, theo kỳ)
    -> POST /api/billing/invoices/generate?period=2026-09
         sinh hóa đơn DRAFT cho từng phòng có hợp đồng ACTIVE
-        dòng tiền = phí cố định (hợp đồng hoặc fee_rate) + tiền theo chỉ số
+        chụp chỉ số công tơ vào hóa đơn:
+          pre = current của hóa đơn kỳ trước -> chỉ số meter_reading kỳ trước -> 0
+          current = meter_reading kỳ này (chưa nhập thì để trống, nhập sau)
+        dòng tiền = phí cố định (hợp đồng hoặc fee_rate) + tiêu thụ (current - pre)
+   -> PUT /{id}/readings nhập hoặc sửa chỉ số sau khi tạo,
+        tính lại dòng điện/nước và totalAmount (PAID thì 409)
    -> publish: DRAFT -> UNPAID
    -> payments: UNPAID -> PARTIAL -> PAID
    -> có thể thêm, sửa, xóa dòng tiền thủ công (cộng dồn lại totalAmount)
    -> PUT /{id}/room-price đổi giá phòng theo từng kỳ, ghi roomPriceNote (PAID thì 409)
 ```
 
-`generate` trả `created` cộng `skipped` (phòng không có hợp đồng hoặc thiếu chỉ số) để UI báo lại. Trang hợp đồng cho khai giá điện, nước, mạng, dịch vụ chung theo từng hợp đồng; trang hóa đơn giữ biểu giá chung theo kỳ và cho sửa riêng giá phòng của hóa đơn.
+`generate` trả `created` cộng `skipped` (đã có hóa đơn kỳ này, thiếu giá, chỉ số cuối kỳ nhỏ hơn đầu kỳ) để UI báo lại; phòng chưa nhập chỉ số cuối kỳ vẫn sinh hóa đơn, thiếu dòng điện nước thì nhập sau bằng `readings`. Trang hợp đồng cho khai giá điện, nước, mạng, dịch vụ chung theo từng hợp đồng; trang hóa đơn giữ biểu giá chung theo kỳ, cho sửa riêng giá phòng và chỉ số công tơ của hóa đơn.
 
 ## Frontend
 
@@ -110,10 +120,10 @@ fee_type (điện, nước, dịch vụ, ...)
 | `auth/` | `AuthProvider` nạp `/api/auth/me`, context cấp `me` và `logout` |
 | `components/` | `AppLayout` (menu theo vai trò, header), `ProtectedRoute`, `RoleRoute` (chặn trang theo vai trò), skeleton, khung ảnh hợp đồng |
 | `components/billing/` | `InvoiceDrawer`, `MeterModal`, `FeeRateModal` |
-| `pages/` | `Login`, `Home`, `Houses`, `Persons`, `Contracts`, `Billing`, `Accounts` |
+| `pages/` | `Login`, `Register`, `Home`, `Houses`, `Persons`, `Contracts`, `Billing`, `Accounts` |
 | `utils/format.ts` | Formatter tiền VND dùng chung |
 
-- Menu và route theo vai trò: `USER` chỉ thấy Tổng quan, Hợp đồng, Hóa đơn; `MANAGER` thêm Nhà & phòng (chỉ đọc) và Người; `ADMIN` thêm Tài khoản. Truy cập sai vai trò thì `RoleRoute` chuyển về trang tổng quan.
+- Menu và route theo vai trò: `USER` chỉ thấy Tổng quan, Hợp đồng, Hóa đơn; `MANAGER` thêm Nhà & phòng (chỉ đọc) và Người; `ADMIN` thêm Tài khoản. Truy cập sai vai trò thì `RoleRoute` chuyển về trang tổng quan. Đăng ký tạo `ADMIN` chủ cho thuê nên menu đầy đủ; dữ liệu đã lọc theo khu vực phía server, giao diện không cần phân biệt admin gốc với admin khu vực.
 
 - Trạng thái server quản bằng TanStack Query; mỗi trang tự `useQuery`.
 - Route cấp trang dùng `React.lazy`, `AppLayout` bọc `<Outlet>` bằng `Suspense` với `PageSkeleton` khớp khung trang.

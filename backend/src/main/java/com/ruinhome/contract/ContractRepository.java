@@ -52,6 +52,7 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
               and (:roomId is null or r.id = :roomId)
               and (:status is null or c.status = :status)
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
               and (:userScope is null or c.holder.id = :userScope
                    or exists (select t.id from c.tenants t where t.id = :userScope))
             """)
@@ -60,6 +61,7 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
                           @Param("status") ContractStatus status,
                           @Param("ownerScope") Long ownerScope,
                           @Param("userScope") Long userScope,
+                          @Param("areaScope") String areaScope,
                           Pageable pageable);
 
     @Query("""
@@ -70,10 +72,12 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
               and c.startDate <= :end
               and c.endDate >= :start
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
             """)
     List<Contract> findActiveForPeriod(@Param("start") LocalDate start,
                                        @Param("end") LocalDate end,
-                                       @Param("ownerScope") Long ownerScope);
+                                       @Param("ownerScope") Long ownerScope,
+                                       @Param("areaScope") String areaScope);
 
     @Query("""
             select count(c) > 0 from Contract c
@@ -87,8 +91,10 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
             select count(c) from Contract c join c.room r join r.house h
             where c.status = com.ruinhome.contract.ContractStatus.ACTIVE
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
             """)
-    long countActiveForScope(@Param("ownerScope") Long ownerScope);
+    long countActiveForScope(@Param("ownerScope") Long ownerScope,
+                             @Param("areaScope") String areaScope);
 
     @Query("""
             select count(c) from Contract c

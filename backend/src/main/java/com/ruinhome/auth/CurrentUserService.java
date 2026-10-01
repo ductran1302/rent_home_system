@@ -34,6 +34,39 @@ public class CurrentUserService {
         return account().getRole() == com.ruinhome.user.Role.ADMIN;
     }
 
+    public boolean isRoot() {
+        return account().isRoot();
+    }
+
+    public String areaOrNull() {
+        var account = account();
+        if (account.getRole() == com.ruinhome.user.Role.ADMIN) {
+            return account.isRoot() ? null : areaOf(account);
+        }
+        if (account.getRole() == com.ruinhome.user.Role.MANAGER) {
+            return areaOf(account);
+        }
+        return null;
+    }
+
+    public String areaForWrite() {
+        return areaOf(account());
+    }
+
+    public void checkArea(String areaAdmin) {
+        var account = account();
+        if (account.getRole() != com.ruinhome.user.Role.ADMIN || account.isRoot()) {
+            return;
+        }
+        if (!areaOf(account).equals(areaAdmin)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền với dữ liệu này");
+        }
+    }
+
+    private String areaOf(UserAccount account) {
+        return account.getAreaAdmin() != null ? account.getAreaAdmin() : account.getUsername();
+    }
+
     public Long personId() {
         Long personId = personIdOrNull();
         if (personId == null) {

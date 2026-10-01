@@ -56,9 +56,6 @@ public class InvoiceService {
         this.currentUserService = currentUserService;
     }
 
-    private record Usage(BigDecimal qty, String warning) {
-    }
-
     @Transactional
     public Page<BillingDtos.InvoiceResponse> search(String period, Long houseId, InvoiceStatus status,
                                                     int page, int size) {
@@ -67,8 +64,11 @@ public class InvoiceService {
         }
         Long ownerScope = null;
         Long userScope = null;
+        String areaScope = null;
         var account = currentUserService.account();
-        if (account.getRole() == Role.MANAGER) {
+        if (account.getRole() == Role.ADMIN) {
+            areaScope = currentUserService.areaOrNull();
+        } else if (account.getRole() == Role.MANAGER) {
             ownerScope = currentUserService.personId();
         } else if (account.getRole() == Role.USER) {
             if (account.getPerson() == null) {
@@ -78,7 +78,7 @@ public class InvoiceService {
         }
         var pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Direction.DESC, "period").and(Sort.by("id")));
-        return invoiceRepository.search(period, houseId, status, ownerScope, userScope, pageable)
+        return invoiceRepository.search(period, houseId, status, ownerScope, userScope, areaScope, pageable)
                 .map(this::toResponse);
     }
 
@@ -92,8 +92,12 @@ public class InvoiceService {
     public BillingDtos.GenerateResponse generate(String period) {
         BillingSupport.validatePeriod(period);
         Long ownerScope = null;
-        if (currentUserService.account().getRole() == Role.MANAGER) {
+        String areaScope = null;
+        var role = currentUserService.account().getRole();
+        if (role == Role.MANAGER) {
             ownerScope = currentUserService.personId();
+        } else if (role == Role.ADMIN) {
+            areaScope = currentUserService.areaOrNull();
         }
 
         contractRepository.expireOverdue(com.ruinhome.contract.ContractStatus.ACTIVE,
@@ -110,7 +114,7 @@ public class InvoiceService {
             rates.put(rate.getFeeType().getCode(), rate);
         }
 
-        List<Contract> contracts = contractRepository.findActiveForPeriod(start, end, ownerScope);
+        List<Contract> contracts = contractRepository.findActiveForPeriod(start, end, ownerScope, areaScope);
         Map<Long, Map<String, Long>> pricesByContract = new HashMap<>();
         for (ContractFeePrice row : contractFeePriceRepository.findByContractIdIn(
                 contracts.stream().map(Contract::getId).toList())) {
@@ -253,25 +257,137 @@ public class InvoiceService {
         return toDetailResponse(invoiceRepository.save(invoice));
     }
 
+    @Transactional
+    public BillingDtos.InvoiceDetailResponse updateReadings(Long id, BillingDtos.UsageReadingsRequest request) {
+        Invoice invoice = findManageable(id);
+        checkEditable(invoice);
+        applyUsage(invoice, "DIEN", request.preElectReading(), request.currentElectReading());
+        applyUsage(invoice, "NUOC", request.preWaterReading(), request.currentWaterReading());
+        invoice.setTotalAmount(totalOf(invoice));
+        recomputeStatus(invoice);
+        return toDetailResponse(invoiceRepository.save(invoice));
+    }
+
+    private void applyUsage(Invoice invoice, String feeCode, BigDecimal pre, BigDecimal current) {
+        if (current == null) {
+            storeReadings(invoice, feeCode, pre, null);
+            return;
+        }
+        if (pre == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thiếu chỉ số đầu kỳ");
+        }
+        BigDecimal qty = current.subtract(pre);
+        if (qty.signum() < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Chỉ số kỳ này phải lớn hơn hoặc bằng chỉ số đầu kỳ");
+        }
+        storeReadings(invoice, feeCode, pre, current);
+        var existing = invoice.getLines().stream()
+                .filter(line -> feeCode.equals(line.getFeeType().getCode()))
+                .findFirst();
+        if (qty.signum() == 0) {
+            existing.ifPresent(invoice.getLines()::remove);
+            return;
+        }
+        if (existing.isPresent()) {
+            InvoiceLine line = existing.get();
+            line.setQuantity(qty);
+            line.setAmount(amountOf(qty, line.getUnitPrice()));
+            return;
+        }
+        FeeType feeType = feeTypeRepository.findByCode(feeCode)
+                .filter(FeeType::isActive)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Không tìm thấy loại phí"));
+        Long price = resolveLinePrice(invoice, feeCode);
+        if (price == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Chưa cấu hình giá " + feeType.getName().toLowerCase() + " kỳ " + invoice.getPeriod());
+        }
+        addLine(invoice, feeType, feeType.getName() + " tháng " + invoice.getPeriod(), qty, price);
+    }
+
+    private Long resolveLinePrice(Invoice invoice, String feeCode) {
+        Long contractPrice = contractRepository
+                .findFirstCoveringDate(invoice.getRoom().getId(), YearMonth.parse(invoice.getPeriod()).atDay(1))
+                .map(contract -> contractFeePriceRepository.findByContractIdIn(List.of(contract.getId())).stream()
+                        .filter(row -> feeCode.equals(row.getFeeCode()))
+                        .map(ContractFeePrice::getPrice)
+                        .findFirst()
+                        .orElse(null))
+                .orElse(null);
+        if (contractPrice != null) {
+            return contractPrice;
+        }
+        return feeRateRepository.findByPeriod(invoice.getPeriod()).stream()
+                .filter(rate -> feeCode.equals(rate.getFeeType().getCode()))
+                .map(FeeRate::getPrice)
+                .findFirst()
+                .orElse(null);
+    }
+
     private void appendUsageLine(Invoice invoice, FeeType feeType, FeeRate rate, Long contractPrice,
                                  Room room, String period, List<BillingDtos.GenerateSkip> skipped) {
         if (feeType == null || !feeType.isActive()) {
             return;
         }
+        BigDecimal pre = resolvePre(room.getId(), feeType, period);
+        BigDecimal current = meterReadingRepository
+                .findByRoomIdAndFeeTypeIdAndPeriod(room.getId(), feeType.getId(), period)
+                .map(MeterReading::getReading)
+                .orElse(null);
+        storeReadings(invoice, feeType.getCode(), pre, current);
         Long price = contractPrice != null ? contractPrice : (rate != null ? rate.getPrice() : null);
         if (price == null) {
             skipped.add(new BillingDtos.GenerateSkip(room.getId(), room.getRoomNumber(),
                     "Chưa cấu hình giá " + feeType.getName().toLowerCase() + " kỳ " + period));
             return;
         }
-        Usage usage = computeUsage(room.getId(), feeType.getId(), period);
-        if (usage.warning() != null) {
-            skipped.add(new BillingDtos.GenerateSkip(room.getId(), room.getRoomNumber(), usage.warning()));
-        }
-        if (usage.qty() == null || usage.qty().signum() <= 0) {
+        if (current == null) {
             return;
         }
-        addLine(invoice, feeType, feeType.getName() + " tháng " + period, usage.qty(), price);
+        BigDecimal qty = current.subtract(pre);
+        if (qty.signum() < 0) {
+            skipped.add(new BillingDtos.GenerateSkip(room.getId(), room.getRoomNumber(),
+                    "Chỉ số kỳ này nhỏ hơn chỉ số đầu kỳ, vui lòng kiểm tra"));
+            return;
+        }
+        if (qty.signum() == 0) {
+            return;
+        }
+        addLine(invoice, feeType, feeType.getName() + " tháng " + period, qty, price);
+    }
+
+    private BigDecimal resolvePre(Long roomId, FeeType feeType, String period) {
+        String prevPeriod = BillingSupport.prevPeriod(period);
+        BigDecimal fromPreviousInvoice = invoiceRepository.findByRoomIdAndPeriod(roomId, prevPeriod)
+                .map(previous -> switch (feeType.getCode()) {
+                    case "DIEN" -> previous.getCurrentElectReading();
+                    case "NUOC" -> previous.getCurrentWaterReading();
+                    default -> null;
+                })
+                .orElse(null);
+        if (fromPreviousInvoice != null) {
+            return fromPreviousInvoice;
+        }
+        return meterReadingRepository.findByRoomIdAndFeeTypeIdAndPeriod(roomId, feeType.getId(), prevPeriod)
+                .map(MeterReading::getReading)
+                .orElse(BigDecimal.ZERO);
+    }
+
+    private void storeReadings(Invoice invoice, String feeCode, BigDecimal pre, BigDecimal current) {
+        switch (feeCode) {
+            case "DIEN" -> {
+                invoice.setPreElectReading(pre);
+                invoice.setCurrentElectReading(current);
+            }
+            case "NUOC" -> {
+                invoice.setPreWaterReading(pre);
+                invoice.setCurrentWaterReading(current);
+            }
+            default -> {
+            }
+        }
     }
 
     private void appendFlatLine(Invoice invoice, FeeType feeType, FeeRate rate, Long contractPrice,
@@ -284,23 +400,6 @@ public class InvoiceService {
             return;
         }
         addLine(invoice, feeType, feeType.getName() + " tháng " + period, ONE, price);
-    }
-
-    private Usage computeUsage(Long roomId, Long feeTypeId, String period) {
-        var current = meterReadingRepository.findByRoomIdAndFeeTypeIdAndPeriod(roomId, feeTypeId, period);
-        if (current.isEmpty()) {
-            return new Usage(null, null);
-        }
-        var previous = meterReadingRepository.findByRoomIdAndFeeTypeIdAndPeriod(
-                roomId, feeTypeId, BillingSupport.prevPeriod(period));
-        if (previous.isEmpty()) {
-            return new Usage(null, "Kỳ trước chưa có chỉ số, chỉ số kỳ này là chỉ số đầu");
-        }
-        BigDecimal delta = current.get().getReading().subtract(previous.get().getReading());
-        if (delta.signum() < 0) {
-            return new Usage(null, "Chỉ số kỳ này nhỏ hơn kỳ trước, vui lòng kiểm tra");
-        }
-        return new Usage(delta, null);
     }
 
     private void addLine(Invoice invoice, FeeType feeType, String description, BigDecimal quantity, Long unitPrice) {
@@ -352,6 +451,7 @@ public class InvoiceService {
                         "Không tìm thấy hóa đơn"));
         var account = currentUserService.account();
         if (account.getRole() == Role.ADMIN) {
+            checkHouseVisible(invoice.getRoom().getHouse());
             return invoice;
         }
         if (account.getRole() == Role.MANAGER) {
@@ -374,15 +474,13 @@ public class InvoiceService {
         Invoice invoice = invoiceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Không tìm thấy hóa đơn"));
-        if (currentUserService.isAdmin()) {
-            return invoice;
-        }
         checkHouseVisible(invoice.getRoom().getHouse());
         return invoice;
     }
 
     private void checkHouseVisible(House house) {
         if (currentUserService.isAdmin()) {
+            currentUserService.checkArea(house.getAreaAdmin());
             return;
         }
         Long personId = currentUserService.personId();
@@ -436,6 +534,10 @@ public class InvoiceService {
                 invoice.getNote(),
                 invoice.getRoomPriceNote(),
                 contractRent,
+                invoice.getPreElectReading(),
+                invoice.getCurrentElectReading(),
+                invoice.getPreWaterReading(),
+                invoice.getCurrentWaterReading(),
                 lines);
     }
 }

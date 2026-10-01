@@ -4,8 +4,8 @@
 
 ## Tính năng
 
-- **Đăng nhập**: JWT, phân vai trò `ADMIN`, `MANAGER`, `USER`. Tài khoản admin mặc định `admin / admin123` được tạo khi khởi động. Tài khoản `MANAGER` có thời hạn quản lý, hết hạn thì không đăng nhập được.
-- **Tài khoản**: trang quản lý tài khoản dành cho `ADMIN`: tạo tài khoản quản lý và người dùng, liên kết hồ sơ cá nhân, đặt thời hạn quản lý, bật tắt tài khoản (không xoá cứng).
+- **Đăng nhập**: JWT, phân vai trò `ADMIN`, `MANAGER`, `USER`. Tài khoản admin mặc định `admin / admin123` được tạo khi khởi động, là admin gốc thấy toàn bộ dữ liệu. Đăng ký tài khoản mới tạo `ADMIN` chủ cho thuê, chỉ thấy khu vực của mình. Tài khoản `MANAGER` có thời hạn quản lý, hết hạn thì không đăng nhập được.
+- **Tài khoản**: trang quản lý tài khoản dành cho `ADMIN`: tạo tài khoản quản lý và người dùng, liên kết hồ sơ cá nhân, đặt thời hạn quản lý, bật tắt tài khoản (không xoá cứng); admin không phải gốc chỉ thao tác trong khu vực của mình.
 - **Người**: thông tin liên hệ, CCCD, tìm kiếm, phân trang, xoá mềm; kèm ngày tạo, người tạo, ngày cập nhật, người cập nhật.
 - **Nhà và phòng**: cây nhà và phòng, diện tích, trạng thái đã có người thuê hay chưa. Tạo sửa nhà và phòng là quyền của `ADMIN`, `MANAGER` chỉ xem.
 - **Hợp đồng**: thuê theo kỳ, liệt kê người cùng thuê, trạng thái `ACTIVE` / `EXPIRED` / `TERMINATED`, thanh lý hợp đồng, ghi chú thêm (ngày dọn đến, tiền cọc), giá điện, nước, mạng, dịch vụ chung theo từng hợp đồng (để trống thì lấy giá chung của kỳ). Mỗi phòng chỉ có tối đa một hợp đồng `ACTIVE` (bắt buộc ở tầng database).
@@ -56,7 +56,7 @@ docker compose logs -f api       # log backend
 | Dịch vụ | Cổng | Ghi chú |
 | --- | --- | --- |
 | web (nginx) | 80 | SPA tĩnh, map `/api/` sang `api:8080` |
-| api | 8080 | REST `/api/**` |
+| api | 8081 | REST `/api/**`, host `8081` -> container `8080` |
 | postgres | 5432 | volume `pgdata` |
 
 Mở `http://localhost`, đăng nhập `admin / admin123`.
@@ -82,7 +82,7 @@ Tài khoản demo:
 
 | Tài khoản | Mật khẩu | Vai trò | Dữ liệu liên quan |
 | --- | --- | --- | --- |
-| `admin` | `admin123` | `ADMIN` | tạo khi khởi động, thấy toàn bộ |
+| `admin` | `admin123` | `ADMIN` | tạo khi khởi động, admin gốc thấy toàn bộ |
 | `quanly` | `quanly123` | `MANAGER` | quản lý nhà `H001`, chỉ thấy nhà đó |
 | `nguoidung` | `nguoidung123` | `USER` | thuê phòng `A101`, chỉ đọc |
 
@@ -104,7 +104,7 @@ Toàn bộ lệnh đi qua `dev.cmd`, file này set `JAVA_HOME` riêng cho phiên
 .\dev.cmd frontend lint               # ESLint
 ```
 
-Chạy dev thì mở `http://localhost:5173`. Dev backend và Docker cùng dùng cổng 8080, muốn chạy cả hai thì dừng một trong hai.
+Chạy dev thì mở `http://localhost:5173`. Dev backend dùng cổng `8080`, Docker api map host `8081` nên cả hai chạy song song được.
 
 ## Kiểm thử
 

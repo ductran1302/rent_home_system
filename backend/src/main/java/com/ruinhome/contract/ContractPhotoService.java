@@ -110,6 +110,7 @@ public class ContractPhotoService {
                         "Không tìm thấy hợp đồng"));
         var account = currentUserService.account();
         if (account.getRole() == Role.ADMIN) {
+            currentUserService.checkArea(contract.getRoom().getHouse().getAreaAdmin());
             return contract;
         }
         if (account.getRole() == Role.MANAGER) {
@@ -133,6 +134,7 @@ public class ContractPhotoService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Không tìm thấy hợp đồng"));
         if (currentUserService.isAdmin()) {
+            currentUserService.checkArea(contract.getRoom().getHouse().getAreaAdmin());
             return contract;
         }
         if (currentUserService.account().getRole() != Role.MANAGER) {

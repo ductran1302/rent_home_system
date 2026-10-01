@@ -6,6 +6,7 @@ import com.ruinhome.user.UserAccount;
 import com.ruinhome.user.UserAccountRepository;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -25,15 +26,20 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UserAccountRepository userAccountRepository;
+    private final RegisterService registerService;
 
     public AuthController(AuthenticationManager authenticationManager, JwtService jwtService,
-                          UserAccountRepository userAccountRepository) {
+                          UserAccountRepository userAccountRepository, RegisterService registerService) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userAccountRepository = userAccountRepository;
+        this.registerService = registerService;
     }
 
     public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+    }
+
+    public record RegisterRequest(String username, String password) {
     }
 
     public record LoginResponse(String token, String username, String role) {
@@ -59,6 +65,12 @@ public class AuthController {
         }
         return new LoginResponse(jwtService.generate(account.getUsername(), account.getRole().name()),
                 account.getUsername(), account.getRole().name());
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<Void> register(@RequestBody RegisterRequest request) {
+        registerService.register(request.username(), request.password());
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @GetMapping("/me")

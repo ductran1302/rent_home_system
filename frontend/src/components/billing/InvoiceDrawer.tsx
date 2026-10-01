@@ -43,6 +43,10 @@ export interface InvoiceDetail {
   note: string | null
   roomPriceNote: string | null
   contractRent: number | null
+  preElectReading: number | null
+  currentElectReading: number | null
+  preWaterReading: number | null
+  currentWaterReading: number | null
   lines: InvoiceLine[]
 }
 
@@ -65,11 +69,26 @@ interface RoomPriceFormValues {
   note?: string
 }
 
+interface ReadingsFormValues {
+  preElectReading?: number | null
+  currentElectReading?: number | null
+  preWaterReading?: number | null
+  currentWaterReading?: number | null
+}
+
 const STATUS_META: Record<InvoiceDetail['status'], { label: string; color?: string }> = {
   DRAFT: { label: 'Nháp', color: 'default' },
   UNPAID: { label: 'Chưa đóng', color: 'red' },
   PARTIAL: { label: 'Đóng một phần', color: 'orange' },
   PAID: { label: 'Đã đóng đủ', color: 'green' },
+}
+
+const LINE_META: Record<string, { order: number; label: string }> = {
+  PHONG: { order: 0, label: 'Tiền phòng' },
+  DIEN: { order: 1, label: 'Tiền điện' },
+  NUOC: { order: 2, label: 'Tiền nước' },
+  MANG: { order: 3, label: 'Tiền mạng' },
+  DICH_VU: { order: 4, label: 'Tiền dịch vụ' },
 }
 
 export default function InvoiceDrawer({
@@ -93,6 +112,7 @@ export default function InvoiceDrawer({
   const [lineForm] = Form.useForm<LineFormValues>()
   const [paymentForm] = Form.useForm<{ amount: number }>()
   const [roomPriceForm] = Form.useForm<RoomPriceFormValues>()
+  const [readingsForm] = Form.useForm<ReadingsFormValues>()
 
   const detailQuery = useQuery({
     queryKey: ['invoice', invoiceId],
@@ -165,7 +185,12 @@ export default function InvoiceDrawer({
   const detail = detailQuery.data
   const remaining = detail ? detail.totalAmount - detail.paidAmount : 0
   const roomLineAmount = detail?.lines.find((line) => line.feeCode === 'PHONG')?.amount ?? null
-  const canEditRoomPrice = canManage && detail != null && detail.status !== 'PAID'
+  const canEdit = canManage && detail != null && detail.status !== 'PAID'
+  const unitElect = feeTypesQuery.data?.find((type) => type.code === 'DIEN')?.unit
+  const unitWater = feeTypesQuery.data?.find((type) => type.code === 'NUOC')?.unit
+  const sortedLines = [...(detail?.lines ?? [])].sort(
+    (a, b) => (LINE_META[a.feeCode]?.order ?? 5) - (LINE_META[b.feeCode]?.order ?? 5),
+  )
 
   const updateRoomPriceMutation = useMutation({
     mutationFn: async (values: RoomPriceFormValues) =>
@@ -175,6 +200,21 @@ export default function InvoiceDrawer({
       }),
     onSuccess: () => {
       message.success('Đã cập nhật giá phòng')
+      afterChange()
+    },
+    onError: (error) => message.error(getErrorMessage(error)),
+  })
+
+  const saveReadingsMutation = useMutation({
+    mutationFn: async (values: ReadingsFormValues) =>
+      api.put(`/billing/invoices/${invoiceId}/readings`, {
+        preElectReading: values.preElectReading ?? null,
+        currentElectReading: values.currentElectReading ?? null,
+        preWaterReading: values.preWaterReading ?? null,
+        currentWaterReading: values.currentWaterReading ?? null,
+      }),
+    onSuccess: () => {
+      message.success('Đã cập nhật chỉ số công tơ')
       afterChange()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -190,8 +230,80 @@ export default function InvoiceDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.id, detail?.roomPriceNote, detail?.totalAmount])
 
+  useEffect(() => {
+    if (detail) {
+      readingsForm.setFieldsValue({
+        preElectReading: detail.preElectReading,
+        currentElectReading: detail.currentElectReading,
+        preWaterReading: detail.preWaterReading,
+        currentWaterReading: detail.currentWaterReading,
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    detail?.id,
+    detail?.preElectReading,
+    detail?.currentElectReading,
+    detail?.preWaterReading,
+    detail?.currentWaterReading,
+  ])
+
+  const watchedPreElect = Form.useWatch('preElectReading', readingsForm)
+  const watchedCurrentElect = Form.useWatch('currentElectReading', readingsForm)
+  const watchedPreWater = Form.useWatch('preWaterReading', readingsForm)
+  const watchedCurrentWater = Form.useWatch('currentWaterReading', readingsForm)
+
+  const formatReading = (value: number | null | undefined) =>
+    value == null ? null : value.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
+
+  const consumptionText = (pre: number | null | undefined, current: number | null | undefined) => {
+    if (pre == null || current == null) return null
+    const qty = current - pre
+    return qty.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
+  }
+
+  const extraText = (pre: number | null | undefined, current: number | null | undefined, unit?: string) => {
+    if (pre == null || current == null || current < pre) return undefined
+    const qty = (current - pre).toLocaleString('vi-VN', { maximumFractionDigits: 2 })
+    return `Tiêu thụ: ${qty}${unit ? ` ${unit}` : ''}`
+  }
+
+  const describeReadings = (pre: number | null, current: number | null, unit?: string) => {
+    if (pre == null && current == null) return 'chưa nhập'
+    const qty = consumptionText(pre, current)
+    const prefix = `${formatReading(pre) ?? 'chưa nhập'} → ${formatReading(current) ?? 'chưa nhập'}`
+    return qty != null ? `${prefix} (tiêu thụ ${qty}${unit ? ` ${unit}` : ''})` : prefix
+  }
+
+  const preMissing = (pre: number | null | undefined, current: number | null | undefined) =>
+    current != null && (pre == null || pre === undefined)
+
+  const lessThanPre = (pre: number | null | undefined, current: number | null | undefined) =>
+    pre != null && current != null && current < pre
+
+  const readingError = (
+    pre: number | null | undefined,
+    current: number | null | undefined,
+  ): string | null => {
+    if (lessThanPre(pre, current)) return 'Phải lớn hơn hoặc bằng chỉ số tháng trước'
+    if (preMissing(pre, current)) return 'Vui lòng nhập chỉ số tháng trước'
+    return null
+  }
+
+  const electErrorText = readingError(watchedPreElect, watchedCurrentElect)
+  const waterErrorText = readingError(watchedPreWater, watchedCurrentWater)
+
+  const fixedLabel = (text: string) => (
+    <span style={{ display: 'inline-block', width: 48 }}>{text}</span>
+  )
+
   const lineColumns = [
-    { title: 'Khoản thu', dataIndex: 'description', key: 'description', ellipsis: true },
+    {
+      title: 'Khoản thu',
+      key: 'label',
+      ellipsis: true,
+      render: (_: unknown, line: InvoiceLine) => LINE_META[line.feeCode]?.label ?? line.description,
+    },
     {
       title: 'Số lượng',
       dataIndex: 'quantity',
@@ -264,9 +376,10 @@ export default function InvoiceDrawer({
       extra={
         canManage && detail ? (
           <Space>
-            {detail.status === 'DRAFT' && (
+            {(detail.status === 'DRAFT') && (
               <Button
-                type="primary"
+                color="green"
+                variant="solid"
                 loading={publishMutation.isPending}
                 onClick={() => publishMutation.mutate()}
               >
@@ -322,14 +435,26 @@ export default function InvoiceDrawer({
               borderRadius: 8,
             }}
           >
-            <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-              Giá phòng kỳ {detail.period}
-            </Typography.Text>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <Typography.Text strong>Giá phòng</Typography.Text>
+              {canEdit && (
+                <Button
+                  type="primary"
+                  loading={updateRoomPriceMutation.isPending}
+                  onClick={() => roomPriceForm.submit()}
+                >
+                  Lưu
+                </Button>
+              )}
+            </div>
             <Space wrap size="large">
-              <Typography.Text>
-                Giá hợp đồng:{' '}
-                {detail.contractRent != null ? formatVnd(detail.contractRent) : 'không tìm thấy hợp đồng'}
-              </Typography.Text>
               <Typography.Text>
                 Giá đang áp dụng: {roomLineAmount != null ? formatVnd(roomLineAmount) : 'không có dòng tiền phòng'}
               </Typography.Text>
@@ -344,37 +469,140 @@ export default function InvoiceDrawer({
                 Lý do điều chỉnh: {detail.roomPriceNote}
               </Typography.Text>
             )}
-            {canEditRoomPrice && (
+            {canEdit && (
               <Form
                 form={roomPriceForm}
                 layout="inline"
                 onFinish={(values) => updateRoomPriceMutation.mutate(values)}
-                style={{ marginTop: 8, rowGap: 12 }}
+                style={{ marginTop: 8, rowGap: 12, width: '100%' }}
               >
                 <Form.Item
-                  label="Giá phòng áp dụng (đồng)"
+                  label="Giá phòng điều chỉnh (đồng)"
                   name="amount"
                   rules={[{ required: true, message: 'Vui lòng nhập giá phòng' }]}
                 >
-                  <InputNumber min={0} step={100000} style={{ width: 200 }} />
+                  <InputNumber min={0} step={100000} style={{ width: 160 }} />
                 </Form.Item>
                 <Form.Item
                   label="Lý do điều chỉnh"
                   name="note"
                   rules={[{ max: 500, message: 'Lý do tối đa 500 ký tự' }]}
+                  style={{ width: '100%', marginRight: 0 }}
                 >
-                  <Input style={{ width: 240 }} placeholder="Người thuê vắng nhà cả tháng" />
-                </Form.Item>
-                <Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={updateRoomPriceMutation.isPending}
-                  >
-                    Lưu
-                  </Button>
+                  <Input.TextArea
+                    rows={1}
+                    style={{ width: '100%', resize: 'vertical' }}
+                    placeholder="Người thuê vắng nhà cả tháng"
+                  />
                 </Form.Item>
               </Form>
+            )}
+          </div>
+
+          <div
+            style={{
+              marginBottom: 16,
+              padding: 12,
+              border: '1px solid rgba(5, 5, 5, 0.08)',
+              borderRadius: 8,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <Typography.Text strong>Chỉ số công tơ</Typography.Text>
+              {canEdit && (
+                <Button
+                  type="primary"
+                  loading={saveReadingsMutation.isPending}
+                  onClick={() => readingsForm.submit()}
+                >
+                  Lưu
+                </Button>
+              )}
+            </div>
+            {canEdit ? (
+              <Form
+                form={readingsForm}
+                layout="inline"
+                onFinish={(values) => {
+                  if (electErrorText || waterErrorText) return
+                  saveReadingsMutation.mutate(values)
+                }}
+                style={{ marginTop: 8, rowGap: 8 }}
+              >
+                <Form.Item style={{ width: '100%', marginBottom: 0 }}>
+                  <Typography.Text strong>Điện (kWh):</Typography.Text>
+                </Form.Item>
+                <Form.Item label={fixedLabel('Trước')} name="preElectReading">
+                  <InputNumber
+                    min={0}
+                    status={preMissing(watchedPreElect, watchedCurrentElect) ? 'error' : undefined}
+                    style={{ width: 150 }}
+                    placeholder="Chưa có = 0"
+                  />
+                </Form.Item>
+                <Form.Item
+                  label={fixedLabel('Sau')}
+                  name="currentElectReading"
+                  extra={extraText(watchedPreElect, watchedCurrentElect, unitElect)}
+                >
+                  <InputNumber
+                    min={0}
+                    status={lessThanPre(watchedPreElect, watchedCurrentElect) ? 'error' : undefined}
+                    style={{ width: 150 }}
+                    placeholder="Nhập chỉ số công tơ"
+                  />
+                </Form.Item>
+                {electErrorText && (
+                  <Form.Item style={{ width: '100%', marginBottom: 0 }}>
+                    <Typography.Text type="danger">{electErrorText}</Typography.Text>
+                  </Form.Item>
+                )}
+                <Form.Item style={{ width: '100%', marginBottom: 0 }}>
+                  <Typography.Text strong>Nước (m³):</Typography.Text>
+                </Form.Item>
+                <Form.Item label={fixedLabel('Trước')} name="preWaterReading">
+                  <InputNumber
+                    min={0}
+                    status={preMissing(watchedPreWater, watchedCurrentWater) ? 'error' : undefined}
+                    style={{ width: 150 }}
+                    placeholder="Chưa có = 0"
+                  />
+                </Form.Item>
+                <Form.Item
+                  label={fixedLabel('Sau')}
+                  name="currentWaterReading"
+                  extra={extraText(watchedPreWater, watchedCurrentWater, unitWater)}
+                >
+                  <InputNumber
+                    min={0}
+                    status={lessThanPre(watchedPreWater, watchedCurrentWater) ? 'error' : undefined}
+                    style={{ width: 150 }}
+                    placeholder="Nhập chỉ số công tơ"
+                  />
+                </Form.Item>
+                {waterErrorText && (
+                  <Form.Item style={{ width: '100%', marginBottom: 0 }}>
+                    <Typography.Text type="danger">{waterErrorText}</Typography.Text>
+                  </Form.Item>
+                )}
+                <Form.Item style={{ width: '100%', marginBottom: 0 }}>
+                  <Typography.Text type="secondary">
+                    Chỉ số tháng trước lấy từ hóa đơn kỳ trước, chưa có thì mặc định 0.
+                  </Typography.Text>
+                </Form.Item>
+              </Form>
+            ) : (
+              <Space size="large" wrap>
+                <Typography.Text>Điện: {describeReadings(detail.preElectReading, detail.currentElectReading, unitElect)}</Typography.Text>
+                <Typography.Text>Nước: {describeReadings(detail.preWaterReading, detail.currentWaterReading, unitWater)}</Typography.Text>
+              </Space>
             )}
           </div>
 
@@ -382,7 +610,7 @@ export default function InvoiceDrawer({
             rowKey="id"
             size="small"
             columns={lineColumns}
-            dataSource={detail.lines}
+            dataSource={sortedLines}
             pagination={false}
             locale={{
               emptyText: (

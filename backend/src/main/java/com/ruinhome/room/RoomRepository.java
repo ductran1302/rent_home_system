@@ -26,15 +26,19 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
             select count(r) from Room r join r.house h
             where r.active = true
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
             """)
-    long countActiveForScope(@Param("ownerScope") Long ownerScope);
+    long countActiveForScope(@Param("ownerScope") Long ownerScope,
+                             @Param("areaScope") String areaScope);
 
     @Query("""
             select count(r) from Room r join r.house h
             where r.active = true
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
               and r.id not in (select c.room.id from Contract c
                                where c.status = com.ruinhome.contract.ContractStatus.ACTIVE)
             """)
-    long countVacantForScope(@Param("ownerScope") Long ownerScope);
+    long countVacantForScope(@Param("ownerScope") Long ownerScope,
+                             @Param("areaScope") String areaScope);
 }

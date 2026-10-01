@@ -3,11 +3,12 @@
 Tất cả endpoint nằm dưới `/api`, trả JSON, ngày tháng dạng `yyyy-MM-dd`, tiền là số nguyên VND.
 
 - Dev backend: `http://localhost:8080/api`
+- API Docker (host): `http://localhost:8081/api`
 - Qua nginx (Docker) hoặc Vite dev server: `http://localhost/api` (frontend luôn gọi `/api`, không hardcode host)
 
 ## Xác thực
 
-`POST /api/auth/login` là endpoint công khai duy nhất (cùng `GET /api/health`). Các endpoint còn lại phải kèm header:
+`POST /api/auth/login`, `POST /api/auth/register` và `GET /api/health` là các endpoint công khai. Các endpoint còn lại phải kèm header:
 
 ```
 Authorization: Bearer <token>
@@ -15,9 +16,11 @@ Authorization: Bearer <token>
 
 | Vai trò | Quyền |
 | --- | --- |
-| `ADMIN` | Toàn quyền: quản lý nhà, phòng, người, tài khoản, biểu giá; bỏ qua kiểm tra phạm vi nhà |
+| `ADMIN` | Toàn quyền trong khu vực của mình (nhà, phòng, người, tài khoản, biểu giá); admin gốc thấy và sửa toàn bộ dữ liệu mọi khu vực |
 | `MANAGER` | Ghi người, hợp đồng, hóa đơn, chỉ số trong phạm vi nhà mình là chủ hoặc quản lý; API ghi nhà/phòng và biểu giá trả `403` (chỉ đọc) |
 | `USER` | Chỉ đọc số liệu của chính mình; `GET /api/houses` trả mảng rỗng, thao tác ghi trả `403` |
+
+**Khu vực (`areaAdmin`)**: dữ liệu gắn với khu vực = tên đăng nhập chủ cho thuê. Admin không phải gốc chỉ liệt kê/xem/sửa dữ liệu trong khu vực của mình: nhà, hợp đồng, hóa đơn, chỉ số, ảnh ngoài khu vực trả `403`; người, tài khoản ngoài khu vực trả `404` (che sự tồn tại); thống kê và danh sách lọc theo khu vực. Admin gốc bỏ qua toàn bộ bộ lọc này. `MANAGER` thuộc khu vực của admin đã tạo nó.
 
 Tài khoản không liên kết hồ sơ cá nhân mà gọi thao tác cần phạm vi sẽ nhận `403` với thông báo "Tài khoản chưa liên kết hồ sơ cá nhân".
 
@@ -51,10 +54,13 @@ Tài khoản `MANAGER` có thời hạn quản lý (`managerStartDate`, `manager
 | --- | --- | --- | --- | --- |
 | GET | `/api/health` | Không | | `{ "status": "OK" }` |
 | POST | `/api/auth/login` | Không | `{ "username", "password" }` | `{ "token", "username", "role" }` |
+| POST | `/api/auth/register` | Không | `{ "username", "password" }` | `201` |
 | GET | `/api/auth/me` | JWT | | `{ "username", "role", "personId", "fullName" }` |
 | GET | `/api/stats` | JWT | | `{ houseCount, roomCount, vacantRoomCount, activeContractCount, unpaidInvoiceCount, outstandingDebt }` |
 
 `login` trả `403` khi tài khoản `MANAGER` chưa đến hoặc đã qua thời hạn quản lý. `stats` của `USER` chưa liên kết hồ sơ trả toàn số `0`.
+
+`register` tạo tài khoản `ADMIN` (chủ cho thuê) bật sẵn, khu vực mang tên chính tài khoản đó, chưa phải admin gốc và chưa liên kết hồ sơ (liên kết sau qua trang Tài khoản). Tên đăng nhập gồm chữ, số, dấu chấm, gạch nối (`3` đến `100` ký tự), trùng trả `409`; mật khẩu `8` đến `32` ký tự; sai quy tắc trả `400`.
 
 ### Người
 
@@ -77,9 +83,9 @@ Person trả về kèm `createdAt`, `updatedAt`, `createdBy`, `updatedBy` (ISO-8
 | PUT | `/api/users/{id}` | ADMIN | `{ password, role*, personId, managerStartDate, managerEndDate, enabled }` | user |
 
 - Không có `DELETE`: tắt tài khoản bằng `enabled = false`; không thể tự tắt tài khoản của chính mình.
-- `role` khi tạo chỉ nhận `MANAGER` hoặc `USER`; không đổi được vai trò `ADMIN` và không tự đổi vai trò của mình.
-- `MANAGER` bắt buộc có `personId` và `managerStartDate` (`yyyy-MM-dd`), `managerEndDate` tùy chọn (để trống là không giới hạn); quá thời hạn thì không đăng nhập được.
-- `ADMIN` khi sửa bắt buộc `personId` (liên kết hồ sơ chủ nhà).
+- `role` khi tạo chỉ nhận `MANAGER` hoặc `USER` (admin chỉ tạo được qua `register`); không đổi được vai trò `ADMIN` và không tự đổi vai trò của mình.
+- `MANAGER` bắt buộc có `personId` và `managerStartDate` (`yyyy-MM-dd`), `managerEndDate` tùy chọn (để trống là không giới hạn); quá thời hạn thì không đăng nhập được. Tài khoản tạo ra thuộc khu vực của người tạo.
+- `ADMIN` khi sửa `personId` tùy chọn (để trống là gỡ liên kết hồ sơ). Không phải admin gốc chỉ sửa được tài khoản cùng khu vực, ngoài khu vực trả `404`.
 - `username` duy nhất, `[A-Za-z0-9._-]{3,100}`; `password` tối thiểu 6 ký tự, bỏ trống khi sửa là giữ nguyên.
 
 ### Nhà và phòng
@@ -144,16 +150,19 @@ Biểu giá là cấu hình toàn hệ thống, vì vậy chỉ `ADMIN` được
 | POST | `/api/billing/meters` | ADMIN, MANAGER | `{ roomId*, feeTypeId*, period*, reading*, note }` | `201` + chỉ số |
 | PUT | `/api/billing/meters/{id}` | ADMIN, MANAGER | `{ reading*, note }` | Chỉ số |
 
+Chỉ số nhập ở đây được chép vào hóa đơn (`currentElectReading` / `currentWaterReading`) khi sinh hóa đơn; sau khi sinh vẫn sửa trực tiếp trên hóa đơn, không ghi ngược lại bảng này.
+
 ### Hóa đơn
 
 | Method | Path | Vai trò | Body / query | Trả về |
 | --- | --- | --- | --- | --- |
 | GET | `/api/billing/invoices` | Đọc | `period`, `houseId`, `status`, `page`, `size` | Phân trang |
-| GET | `/api/billing/invoices/{id}` | Đọc | | Hóa đơn kèm `lines`, `contractRent`, `roomPriceNote` |
+| GET | `/api/billing/invoices/{id}` | Đọc | | Hóa đơn kèm `lines`, `contractRent`, `roomPriceNote`, 4 trường chỉ số công tơ |
 | POST | `/api/billing/invoices/generate` | ADMIN, MANAGER | `period` (query) | `{ created, skipped: [{ roomId, roomNumber, reason }] }` |
 | POST | `/api/billing/invoices/{id}/publish` | ADMIN, MANAGER | Không | Hóa đơn `UNPAID` |
 | POST | `/api/billing/invoices/{id}/payments` | ADMIN, MANAGER | `{ amount* }` (tối thiểu 1) | Hóa đơn sau khi cộng tiền |
 | PUT | `/api/billing/invoices/{id}/room-price` | ADMIN, MANAGER | `{ amount*, note }` (tối đa 500 ký tự) | Hóa đơn với dòng `PHONG` đã đổi giá |
+| PUT | `/api/billing/invoices/{id}/readings` | ADMIN, MANAGER | `{ preElectReading, currentElectReading, preWaterReading, currentWaterReading }` (số không âm, `null` là bỏ trống) | Hóa đơn với dòng điện/nước đã tính lại |
 | POST | `/api/billing/invoices/{id}/lines` | ADMIN, MANAGER | `{ feeTypeId*, quantity*, unitPrice*, description }` | Dòng tiền |
 | PUT | `/api/billing/invoices/{id}/lines/{lineId}` | ADMIN, MANAGER | `{ quantity*, unitPrice* }` | Dòng tiền |
 | DELETE | `/api/billing/invoices/{id}/lines/{lineId}` | ADMIN, MANAGER | | Hóa đơn kèm `lines` |
@@ -162,7 +171,9 @@ Trạng thái hóa đơn: `DRAFT` (mới sinh) `publish` sang `UNPAID`, thu mộ
 
 `room-price` đổi đơn giá dòng tiền phòng (dòng có `feeCode = PHONG`), ghi `note` vào `roomPriceNote`, tính lại `totalAmount` và trạng thái; hóa đơn `PAID` trả `409`. `contractRent` trong chi tiết là giá phòng theo hợp đồng phủ kỳ hóa đơn, dùng để so với giá đang áp dụng.
 
-Sinh hóa đơn (`generate`): điện, nước lấy giá hợp đồng (nếu có) hoặc `fee_rate` của kỳ cộng với chênh lệch chỉ số; mạng và dịch vụ chung lấy giá hợp đồng hoặc `fee_rate`, thiếu cả hai thì bỏ qua và ghi lý do trong `skipped`.
+**Chỉ số công tơ**: hóa đơn giữ 4 trường `preElectReading`, `currentElectReading` (điện), `preWaterReading`, `currentWaterReading` (nước) là số công tơ đầu kỳ và cuối kỳ; tiêu thụ = cuối kỳ trừ đầu kỳ. `readings` cập nhật cả 4 trường trong một lần gọi, bắt buộc có đầu kỳ khi điền cuối kỳ, `current < pre` trả `400`. Tiêu thụ lớn hơn 0 thì tạo hoặc cập nhật dòng điện/nước (giá hợp đồng hoặc `fee_rate`, thiếu giá trả `400`), bằng 0 thì xoá dòng đó, `current = null` thì chỉ ghi chỉ số không đụng dòng; tính lại `totalAmount` và trạng thái, hóa đơn `PAID` trả `409`.
+
+Sinh hóa đơn (`generate`): với điện và nước, chụp chỉ số vào hóa đơn: đầu kỳ lấy `currentElectReading`/`currentWaterReading` của hóa đơn cùng phòng kỳ trước, không có thì lấy chỉ số đã nhập kỳ trước, không có gì thì `0`; cuối kỳ lấy chỉ số đã nhập qua `meters` (chưa nhập thì để trống, nhập sau bằng `readings`). Dòng tiền điện/nước tính bằng tiêu thụ (cuối kỳ trừ đầu kỳ) nhân giá hợp đồng hoặc `fee_rate`, cuối kỳ chưa nhập thì chưa có dòng; chỉ số cuối kỳ nhỏ hơn đầu kỳ ghi lý do trong `skipped`. Mạng và dịch vụ chung lấy giá hợp đồng hoặc `fee_rate`, thiếu cả hai thì bỏ qua và ghi lý do trong `skipped`.
 
 ## Ví dụ
 

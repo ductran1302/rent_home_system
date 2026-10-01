@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,6 +50,18 @@ public class Invoice extends BaseEntity {
 
     @Column(name = "room_price_note", length = 500)
     private String roomPriceNote;
+
+    @Column(name = "pre_elect_reading")
+    private BigDecimal preElectReading;
+
+    @Column(name = "current_elect_reading")
+    private BigDecimal currentElectReading;
+
+    @Column(name = "pre_water_reading")
+    private BigDecimal preWaterReading;
+
+    @Column(name = "current_water_reading")
+    private BigDecimal currentWaterReading;
 
     @OneToMany(mappedBy = "invoice", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true)

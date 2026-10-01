@@ -27,11 +27,12 @@ public class PersonService {
     @Transactional(readOnly = true)
     public Page<PersonDtos.PersonResponse> list(String q, int page, int size) {
         var pageable = PageRequest.of(page, size, Sort.by("fullName"));
+        String areaScope = currentUserService.areaOrNull();
         Page<Person> result;
         if (q == null || q.isBlank()) {
-            result = personRepository.findAll(pageable);
+            result = personRepository.findAllInArea(areaScope, pageable);
         } else {
-            result = personRepository.search(q.trim(), pageable);
+            result = personRepository.searchInArea(q.trim(), areaScope, pageable);
         }
         return result.map(PersonDtos::toResponse);
     }
@@ -45,6 +46,7 @@ public class PersonService {
     public PersonDtos.PersonResponse create(PersonDtos.PersonRequest request) {
         Person person = new Person();
         apply(person, request);
+        person.setAreaAdmin(currentUserService.areaForWrite());
         person.setCreatedBy(currentUserService.username());
         return PersonDtos.toResponse(personRepository.save(person));
     }
@@ -70,8 +72,13 @@ public class PersonService {
     }
 
     private Person find(Long id) {
-        return personRepository.findById(id)
+        Person person = personRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người"));
+        String areaScope = currentUserService.areaOrNull();
+        if (areaScope != null && !areaScope.equals(person.getAreaAdmin())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy người");
+        }
+        return person;
     }
 
     private void apply(Person person, PersonDtos.PersonRequest request) {

@@ -8,6 +8,7 @@ import {
   Space,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from 'antd'
 import { useMutation, useQuery } from '@tanstack/react-query'
@@ -253,9 +254,11 @@ export default function BillingPage() {
             <>
               {isAdmin && <Button onClick={() => setFeeRateOpen(true)}>Cấu hình giá</Button>}
               <Button onClick={() => setMeterOpen(true)}>Nhập chỉ số</Button>
-              <Button type="primary" loading={generateMutation.isPending} onClick={openGenerate}>
-                Tạo hóa đơn kỳ này
-              </Button>
+              <Tooltip title="Tạo hóa đơn theo tháng đang chọn">
+                <Button type="primary" loading={generateMutation.isPending} onClick={openGenerate}>
+                  Tạo hóa đơn
+                </Button>
+              </Tooltip>
             </>
           )}
         </Space>

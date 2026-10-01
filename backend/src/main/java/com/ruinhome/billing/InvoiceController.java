@@ -80,6 +80,13 @@ public class InvoiceController {
         return invoiceService.updateRoomPrice(id, request);
     }
 
+    @PutMapping("/{id}/readings")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public BillingDtos.InvoiceDetailResponse updateReadings(@PathVariable Long id,
+                                                            @Valid @RequestBody BillingDtos.UsageReadingsRequest request) {
+        return invoiceService.updateReadings(id, request);
+    }
+
     @PutMapping("/{id}/lines/{lineId}")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public BillingDtos.InvoiceDetailResponse updateLine(@PathVariable Long id,

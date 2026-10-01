@@ -225,7 +225,7 @@ export default function MeterModal({
           }))}
         />
         <Typography.Text type="secondary">
-          Chỉ số kỳ trước sẽ tự dùng để tính tiền khi tạo hóa đơn
+          Chỉ số được chép vào hóa đơn khi tạo; sau khi tạo vẫn sửa trực tiếp trên hóa đơn
         </Typography.Text>
       </Space>
 

@@ -22,6 +22,7 @@ public interface HouseRepository extends JpaRepository<House, Long> {
 
     long countByActiveTrue();
 
-    @Query("select count(h) from House h where h.active = true and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)")
-    long countActiveForScope(@Param("ownerScope") Long ownerScope);
+    @Query("select count(h) from House h where h.active = true and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope) and (:areaScope is null or h.areaAdmin = :areaScope)")
+    long countActiveForScope(@Param("ownerScope") Long ownerScope,
+                             @Param("areaScope") String areaScope);
 }

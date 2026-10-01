@@ -31,7 +31,9 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<UserDtos.UserResponse> list() {
+        String areaScope = currentUserService.areaOrNull();
         return userAccountRepository.findAllWithPerson().stream()
+                .filter(account -> areaScope == null || areaScope.equals(account.getAreaAdmin()))
                 .map(UserDtos::toResponse)
                 .toList();
     }
@@ -52,6 +54,7 @@ public class UserService {
         account.setPasswordHash(passwordEncoder.encode(request.password()));
         account.setRole(role);
         account.setEnabled(request.enabled() == null || request.enabled());
+        account.setAreaAdmin(currentUserService.areaForWrite());
         applyPersonAndPeriod(account, role, request.personId(),
                 request.managerStartDate(), request.managerEndDate());
         return UserDtos.toResponse(userAccountRepository.save(account));
@@ -62,6 +65,10 @@ public class UserService {
         UserAccount account = userAccountRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Không tìm thấy tài khoản"));
+        if (!currentUserService.isRoot()
+                && !currentUserService.areaForWrite().equals(account.getAreaAdmin())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản");
+        }
         Role requested = parseRole(request.role());
         String self = currentUserService.username();
         boolean isSelf = account.getUsername().equals(self);
@@ -92,15 +99,11 @@ public class UserService {
 
     private void applyPersonAndPeriod(UserAccount account, Role role, Long personId,
                                       LocalDate startDate, LocalDate endDate) {
-        if (role == Role.ADMIN || role == Role.MANAGER) {
-            if (personId == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Vui lòng liên kết hồ sơ cá nhân cho tài khoản này");
-            }
-            account.setPerson(findPerson(personId));
-        } else {
-            account.setPerson(personId == null ? null : findPerson(personId));
+        if (role == Role.MANAGER && personId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Vui lòng liên kết hồ sơ cá nhân cho tài khoản này");
         }
+        account.setPerson(personId == null ? null : findPerson(personId));
         if (role == Role.MANAGER) {
             if (startDate == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

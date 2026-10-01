@@ -41,4 +41,7 @@ public class House extends BaseEntity {
 
     @Column(name = "active", nullable = false)
     private boolean active = true;
+
+    @Column(name = "area_admin", length = 100)
+    private String areaAdmin;
 }

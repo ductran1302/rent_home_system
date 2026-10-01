@@ -35,7 +35,9 @@ public class HouseService {
             return List.of();
         }
         if (account.getRole() == Role.ADMIN) {
+            String areaScope = currentUserService.areaOrNull();
             return houseRepository.findByActiveTrueOrderByCodeAsc().stream()
+                    .filter(house -> areaScope == null || areaScope.equals(house.getAreaAdmin()))
                     .map(this::toResponse).toList();
         }
         Long personId = currentUserService.personId();
@@ -58,6 +60,7 @@ public class HouseService {
         house.setName(request.name().trim());
         house.setAddress(request.address().trim());
         house.setNote(normalizeNote(request.note()));
+        house.setAreaAdmin(currentUserService.areaForWrite());
         house.setOwner(findPerson(request.ownerId()));
         house.setManager(request.managerId() != null ? findPerson(request.managerId())
                 : house.getOwner());
@@ -94,6 +97,7 @@ public class HouseService {
         House house = houseRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nhà"));
         if (currentUserService.isAdmin()) {
+            currentUserService.checkArea(house.getAreaAdmin());
             return house;
         }
         Long personId = currentUserService.personId();

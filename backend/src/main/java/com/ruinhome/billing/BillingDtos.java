@@ -61,7 +61,16 @@ public final class BillingDtos {
                                         String roomNumber, String period, Long totalAmount, Long paidAmount,
                                         InvoiceStatus status, String note, String roomPriceNote,
                                         Long contractRent,
+                                        BigDecimal preElectReading, BigDecimal currentElectReading,
+                                        BigDecimal preWaterReading, BigDecimal currentWaterReading,
                                         List<InvoiceLineResponse> lines) {
+    }
+
+    public record UsageReadingsRequest(
+            @PositiveOrZero BigDecimal preElectReading,
+            @PositiveOrZero BigDecimal currentElectReading,
+            @PositiveOrZero BigDecimal preWaterReading,
+            @PositiveOrZero BigDecimal currentWaterReading) {
     }
 
     public record InvoiceLineRequest(

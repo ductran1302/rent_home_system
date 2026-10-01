@@ -33,8 +33,14 @@ public class MeterService {
         if (period != null) {
             BillingSupport.validatePeriod(period);
         }
-        Long ownerScope = currentUserService.isAdmin() ? null : currentUserService.personId();
-        return meterReadingRepository.search(period, roomId, ownerScope).stream()
+        Long ownerScope = null;
+        String areaScope = null;
+        if (currentUserService.isAdmin()) {
+            areaScope = currentUserService.areaOrNull();
+        } else {
+            ownerScope = currentUserService.personId();
+        }
+        return meterReadingRepository.search(period, roomId, ownerScope, areaScope).stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -77,6 +83,7 @@ public class MeterService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Không tìm thấy phòng"));
         if (currentUserService.isAdmin()) {
+            currentUserService.checkArea(room.getHouse().getAreaAdmin());
             return room;
         }
         House house = room.getHouse();

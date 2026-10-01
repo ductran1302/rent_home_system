@@ -22,6 +22,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
               and (:houseId is null or h.id = :houseId)
               and (:status is null or i.status = :status)
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
               and (:userScope is null or exists (
                     select 1 from Contract c2
                     where c2.room = r
@@ -33,6 +34,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
                          @Param("status") InvoiceStatus status,
                          @Param("ownerScope") Long ownerScope,
                          @Param("userScope") Long userScope,
+                         @Param("areaScope") String areaScope,
                          Pageable pageable);
 
     @Query("""
@@ -41,6 +43,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
               and i.status in (com.ruinhome.billing.InvoiceStatus.UNPAID,
                                   com.ruinhome.billing.InvoiceStatus.PARTIAL)
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
               and (:userScope is null or exists (
                     select 1 from Contract c2
                     where c2.room = r
@@ -49,7 +52,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             """)
     long countUnpaidForPeriod(@Param("period") String period,
                           @Param("ownerScope") Long ownerScope,
-                          @Param("userScope") Long userScope);
+                          @Param("userScope") Long userScope,
+                          @Param("areaScope") String areaScope);
 
     @Query("""
             select coalesce(sum(i.totalAmount - i.paidAmount), 0) from Invoice i join i.room r join r.house h
@@ -57,6 +61,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
               and i.status in (com.ruinhome.billing.InvoiceStatus.UNPAID,
                                   com.ruinhome.billing.InvoiceStatus.PARTIAL)
               and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
               and (:userScope is null or exists (
                     select 1 from Contract c2
                     where c2.room = r
@@ -65,5 +70,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             """)
     long sumDebtForPeriod(@Param("period") String period,
                       @Param("ownerScope") Long ownerScope,
-                      @Param("userScope") Long userScope);
+                      @Param("userScope") Long userScope,
+                      @Param("areaScope") String areaScope);
 }

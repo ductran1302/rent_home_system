@@ -36,6 +36,9 @@ public class Person extends BaseEntity {
     @Column(name = "updated_by", length = 100)
     private String updatedBy;
 
+    @Column(name = "area_admin", length = 100)
+    private String areaAdmin;
+
     @Override
     protected void onCreate() {
         super.onCreate();

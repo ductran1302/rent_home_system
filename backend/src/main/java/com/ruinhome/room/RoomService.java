@@ -104,6 +104,7 @@ public class RoomService {
         House house = houseRepository.findByIdAndActiveTrue(houseId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy nhà"));
         if (currentUserService.isAdmin()) {
+            currentUserService.checkArea(house.getAreaAdmin());
             return house;
         }
         Long personId = currentUserService.personId();

@@ -1,6 +1,7 @@
 import {
   ApartmentOutlined,
   FileTextOutlined,
+  HomeOutlined,
   KeyOutlined,
   LogoutOutlined,
   PayCircleOutlined,
@@ -33,7 +34,7 @@ export default function AppLayout() {
     ...(role === 'USER'
       ? []
       : [
-          { key: '/houses', icon: <ApartmentOutlined />, label: 'Nhà & phòng' },
+          { key: '/houses', icon: <HomeOutlined />, label: 'Nhà & phòng' },
           { key: '/persons', icon: <TeamOutlined />, label: 'Người' },
         ]),
     { key: '/contracts', icon: <FileTextOutlined />, label: 'Hợp đồng' },

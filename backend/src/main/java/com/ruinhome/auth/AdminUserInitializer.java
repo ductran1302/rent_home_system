@@ -32,6 +32,8 @@ public class AdminUserInitializer implements CommandLineRunner {
         admin.setPasswordHash(passwordEncoder.encode("admin123"));
         admin.setRole(Role.ADMIN);
         admin.setEnabled(true);
+        admin.setAreaAdmin("admin");
+        admin.setRoot(true);
         userAccountRepository.save(admin);
         log.info("Da tao tai khoan mac dinh admin/admin123");
     }
