@@ -18,7 +18,6 @@ import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
 import FeeRateModal from '../components/billing/FeeRateModal'
 import InvoiceDrawer from '../components/billing/InvoiceDrawer'
-import MeterModal from '../components/billing/MeterModal'
 import { formatVnd } from '../utils/format'
 
 interface InvoiceRow {
@@ -59,7 +58,6 @@ export default function BillingPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null)
-  const [meterOpen, setMeterOpen] = useState(false)
   const [feeRateOpen, setFeeRateOpen] = useState(false)
 
   const invoicesQuery = useQuery({
@@ -253,7 +251,6 @@ export default function BillingPage() {
           {canManage && (
             <>
               {isAdmin && <Button onClick={() => setFeeRateOpen(true)}>Cấu hình giá</Button>}
-              <Button onClick={() => setMeterOpen(true)}>Nhập chỉ số</Button>
               <Tooltip title="Tạo hóa đơn theo tháng đang chọn">
                 <Button type="primary" loading={generateMutation.isPending} onClick={openGenerate}>
                   Tạo hóa đơn
@@ -302,7 +299,6 @@ export default function BillingPage() {
         onChanged={() => invoicesQuery.refetch()}
         canManage={canManage}
       />
-      <MeterModal open={meterOpen} onClose={() => setMeterOpen(false)} period={period} />
       <FeeRateModal open={feeRateOpen} onClose={() => setFeeRateOpen(false)} period={period} />
     </div>
   )

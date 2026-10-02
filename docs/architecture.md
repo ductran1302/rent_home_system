@@ -91,20 +91,20 @@ Quy ước cột: tiền `BIGINT` (VND không thập phân), ngày `DATE`, kỳ 
 
 ```
 fee_type (điện, nước, dịch vụ, ...)
-   -> giá theo hợp đồng (contract_fee_price, có thì ưu tiên)
-   -> fee_rate theo kỳ (giá cố định cho một kỳ, dùng khi hợp đồng không đặt giá riêng)
+   -> fee_rate theo kỳ (ưu tiên, cấu hình qua nút Cấu hình giá ở trang hóa đơn)
+   -> giá theo hợp đồng (contract_fee_price, dùng khi không có fee_rate của kỳ)
    -> meter_reading (chỉ số điện nước theo phòng, theo kỳ)
    -> POST /api/billing/invoices/generate?period=2026-09
         sinh hóa đơn DRAFT cho từng phòng có hợp đồng ACTIVE
         chụp chỉ số công tơ vào hóa đơn:
           pre = current của hóa đơn kỳ trước -> chỉ số meter_reading kỳ trước -> 0
           current = meter_reading kỳ này (chưa nhập thì để trống, nhập sau)
-        dòng tiền = phí cố định (hợp đồng hoặc fee_rate) + tiêu thụ (current - pre)
+        dòng tiền = phí cố định (fee_rate kỳ ưu tiên, không có thì hợp đồng) + tiêu thụ (current - pre)
    -> PUT /{id}/readings nhập hoặc sửa chỉ số sau khi tạo,
         tính lại dòng điện/nước và totalAmount (PAID thì 409)
    -> publish: DRAFT -> UNPAID
    -> payments: UNPAID -> PARTIAL -> PAID
-   -> có thể thêm, sửa, xóa dòng tiền thủ công (cộng dồn lại totalAmount)
+   -> có thể sửa, xóa dòng tiền thủ công (cộng dồn lại totalAmount)
    -> PUT /{id}/room-price đổi giá phòng theo từng kỳ, ghi roomPriceNote (PAID thì 409)
 ```
 

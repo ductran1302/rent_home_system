@@ -144,18 +144,18 @@ function EllipsisCell({
 
 function FeePriceFields() {
   return (
-    <>
-      <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-        Giá dịch vụ theo hợp đồng (để trống thì lấy giá chung của kỳ hóa đơn)
-      </Typography.Text>
-      <Space style={{ display: 'flex' }} size="large" wrap>
-        {FEE_FIELDS.map((field) => (
-          <Form.Item key={field.key} label={`${field.label} (${field.unit})`} name={['feePrices', field.key]}>
-            <InputNumber min={0} step={field.step} style={{ width: 220 }} placeholder="Theo giá chung" />
-          </Form.Item>
-        ))}
-      </Space>
-    </>
+    <Space style={{ display: 'flex' }} size="large" wrap>
+      {FEE_FIELDS.map((field) => (
+        <Form.Item
+          key={field.key}
+          label={`${field.label} (${field.unit})`}
+          name={['feePrices', field.key]}
+          rules={[{ required: true, message: `Vui lòng nhập ${field.label.toLowerCase()}` }]}
+        >
+          <InputNumber min={0} step={field.step} style={{ width: 220 }} placeholder="Nhập giá" />
+        </Form.Item>
+      ))}
+    </Space>
   )
 }
 

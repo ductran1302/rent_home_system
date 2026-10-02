@@ -387,17 +387,14 @@ export default function InvoiceDrawer({
               </Button>
             )}
             {(detail.status === 'UNPAID' || detail.status === 'PARTIAL') && (
-              <>
-                <Button onClick={() => setLineModalOpen(true)}>Thêm dòng</Button>
-                <Button
-                  onClick={() => {
-                    paymentForm.setFieldsValue({ amount: remaining > 0 ? remaining : undefined })
-                    setPaymentOpen(true)
-                  }}
-                >
-                  Ghi nhận đóng tiền
-                </Button>
-              </>
+              <Button
+                onClick={() => {
+                  paymentForm.setFieldsValue({ amount: remaining > 0 ? remaining : undefined })
+                  setPaymentOpen(true)
+                }}
+              >
+                Ghi nhận đóng tiền
+              </Button>
             )}
           </Space>
         ) : null

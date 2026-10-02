@@ -117,7 +117,7 @@ Person trả về kèm `createdAt`, `updatedAt`, `createdBy`, `updatedBy` (ISO-8
 
 `status` nhận `ACTIVE`, `EXPIRED`, `TERMINATED`. Tạo hợp đồng cho phòng đã có hợp đồng `ACTIVE` trả `400`.
 
-`feePrices` là object `{ "DIEN": 3400, "NUOC": 21000, "MANG": 90000, "DICH_VU": 45000 }`, đơn giá VND theo đơn vị của loại phí. Không gửi khóa thì giữ nguyên giá hiện có; gửi object rỗng thì xoá hết; giá để `null` trong object thì bỏ qua khóa đó. Loại phí ngoài bốn mã trên trả `400`. Hợp đồng không đặt giá riêng thì khi sinh hóa đơn lấy `fee_rate` của kỳ.
+`feePrices` là object `{ "DIEN": 3400, "NUOC": 21000, "MANG": 90000, "DICH_VU": 45000 }`, đơn giá VND theo đơn vị của loại phí. Không gửi khóa thì giữ nguyên giá hiện có; gửi object rỗng thì xoá hết; giá để `null` trong object thì bỏ qua khóa đó. Loại phí ngoài bốn mã trên trả `400`. Khi tính dòng điện nước (sinh hóa đơn hoặc `readings`) ưu tiên `fee_rate` của kỳ, không có thì lấy giá riêng của hợp đồng còn hiệu lực trong kỳ (hợp đồng bắt đầu giữa kỳ vẫn tính).
 
 `note` là ghi chú tự do tối đa 500 ký tự (ký ngày, ngày dọn đến, tiền cọc...), gửi chuỗi rỗng hoặc `null` thì xoá ghi chú. Contract trả về kèm `houseCode` và `note`.
 
@@ -171,9 +171,9 @@ Trạng thái hóa đơn: `DRAFT` (mới sinh) `publish` sang `UNPAID`, thu mộ
 
 `room-price` đổi đơn giá dòng tiền phòng (dòng có `feeCode = PHONG`), ghi `note` vào `roomPriceNote`, tính lại `totalAmount` và trạng thái; hóa đơn `PAID` trả `409`. `contractRent` trong chi tiết là giá phòng theo hợp đồng phủ kỳ hóa đơn, dùng để so với giá đang áp dụng.
 
-**Chỉ số công tơ**: hóa đơn giữ 4 trường `preElectReading`, `currentElectReading` (điện), `preWaterReading`, `currentWaterReading` (nước) là số công tơ đầu kỳ và cuối kỳ; tiêu thụ = cuối kỳ trừ đầu kỳ. `readings` cập nhật cả 4 trường trong một lần gọi, bắt buộc có đầu kỳ khi điền cuối kỳ, `current < pre` trả `400`. Tiêu thụ lớn hơn 0 thì tạo hoặc cập nhật dòng điện/nước (giá hợp đồng hoặc `fee_rate`, thiếu giá trả `400`), bằng 0 thì xoá dòng đó, `current = null` thì chỉ ghi chỉ số không đụng dòng; tính lại `totalAmount` và trạng thái, hóa đơn `PAID` trả `409`.
+**Chỉ số công tơ**: hóa đơn giữ 4 trường `preElectReading`, `currentElectReading` (điện), `preWaterReading`, `currentWaterReading` (nước) là số công tơ đầu kỳ và cuối kỳ; tiêu thụ = cuối kỳ trừ đầu kỳ. `readings` cập nhật cả 4 trường trong một lần gọi, bắt buộc có đầu kỳ khi điền cuối kỳ, `current < pre` trả `400`. Tiêu thụ lớn hơn 0 thì tạo hoặc cập nhật dòng điện/nước (ưu tiên `fee_rate` của kỳ, không có thì giá ghi trong hợp đồng còn hiệu lực trong kỳ, thiếu cả hai trả `400` với thông báo `Chưa có cấu hình giá kỳ MM/yyyy`), bằng 0 thì xoá dòng đó, `current = null` thì chỉ ghi chỉ số không đụng dòng; tính lại `totalAmount` và trạng thái, hóa đơn `PAID` trả `409`.
 
-Sinh hóa đơn (`generate`): với điện và nước, chụp chỉ số vào hóa đơn: đầu kỳ lấy `currentElectReading`/`currentWaterReading` của hóa đơn cùng phòng kỳ trước, không có thì lấy chỉ số đã nhập kỳ trước, không có gì thì `0`; cuối kỳ lấy chỉ số đã nhập qua `meters` (chưa nhập thì để trống, nhập sau bằng `readings`). Dòng tiền điện/nước tính bằng tiêu thụ (cuối kỳ trừ đầu kỳ) nhân giá hợp đồng hoặc `fee_rate`, cuối kỳ chưa nhập thì chưa có dòng; chỉ số cuối kỳ nhỏ hơn đầu kỳ ghi lý do trong `skipped`. Mạng và dịch vụ chung lấy giá hợp đồng hoặc `fee_rate`, thiếu cả hai thì bỏ qua và ghi lý do trong `skipped`.
+Sinh hóa đơn (`generate`): với điện và nước, chụp chỉ số vào hóa đơn: đầu kỳ lấy `currentElectReading`/`currentWaterReading` của hóa đơn cùng phòng kỳ trước, không có thì lấy chỉ số đã nhập kỳ trước, không có gì thì `0`; cuối kỳ lấy chỉ số đã nhập qua `meters` (chưa nhập thì để trống, nhập sau bằng `readings`). Dòng tiền điện/nước tính bằng tiêu thụ (cuối kỳ trừ đầu kỳ) nhân giá (ưu tiên `fee_rate` của kỳ, không có thì giá ghi trong hợp đồng), cuối kỳ chưa nhập thì chưa có dòng; thiếu giá hoặc chỉ số cuối kỳ nhỏ hơn đầu kỳ ghi lý do trong `skipped`. Mạng và dịch vụ chung lấy giá theo cùng thứ tự ưu tiên đó, thiếu thì bỏ qua dòng đó.
 
 ## Ví dụ
 

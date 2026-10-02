@@ -302,27 +302,28 @@ public class InvoiceService {
         Long price = resolveLinePrice(invoice, feeCode);
         if (price == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Chưa cấu hình giá " + feeType.getName().toLowerCase() + " kỳ " + invoice.getPeriod());
+                    "Chưa có cấu hình giá kỳ " + BillingSupport.displayPeriod(invoice.getPeriod()));
         }
         addLine(invoice, feeType, feeType.getName() + " tháng " + invoice.getPeriod(), qty, price);
     }
 
     private Long resolveLinePrice(Invoice invoice, String feeCode) {
-        Long contractPrice = contractRepository
-                .findFirstCoveringDate(invoice.getRoom().getId(), YearMonth.parse(invoice.getPeriod()).atDay(1))
+        Long ratePrice = feeRateRepository.findByPeriod(invoice.getPeriod()).stream()
+                .filter(rate -> feeCode.equals(rate.getFeeType().getCode()))
+                .map(FeeRate::getPrice)
+                .findFirst()
+                .orElse(null);
+        if (ratePrice != null) {
+            return ratePrice;
+        }
+        YearMonth period = YearMonth.parse(invoice.getPeriod());
+        return contractRepository
+                .findFirstCoveringPeriod(invoice.getRoom().getId(), period.atDay(1), period.atEndOfMonth())
                 .map(contract -> contractFeePriceRepository.findByContractIdIn(List.of(contract.getId())).stream()
                         .filter(row -> feeCode.equals(row.getFeeCode()))
                         .map(ContractFeePrice::getPrice)
                         .findFirst()
                         .orElse(null))
-                .orElse(null);
-        if (contractPrice != null) {
-            return contractPrice;
-        }
-        return feeRateRepository.findByPeriod(invoice.getPeriod()).stream()
-                .filter(rate -> feeCode.equals(rate.getFeeType().getCode()))
-                .map(FeeRate::getPrice)
-                .findFirst()
                 .orElse(null);
     }
 
@@ -337,10 +338,10 @@ public class InvoiceService {
                 .map(MeterReading::getReading)
                 .orElse(null);
         storeReadings(invoice, feeType.getCode(), pre, current);
-        Long price = contractPrice != null ? contractPrice : (rate != null ? rate.getPrice() : null);
+        Long price = rate != null ? rate.getPrice() : contractPrice;
         if (price == null) {
             skipped.add(new BillingDtos.GenerateSkip(room.getId(), room.getRoomNumber(),
-                    "Chưa cấu hình giá " + feeType.getName().toLowerCase() + " kỳ " + period));
+                    "Chưa có cấu hình giá kỳ " + BillingSupport.displayPeriod(period)));
             return;
         }
         if (current == null) {
@@ -395,7 +396,7 @@ public class InvoiceService {
         if (feeType == null || !feeType.isActive()) {
             return;
         }
-        Long price = contractPrice != null ? contractPrice : (rate != null ? rate.getPrice() : null);
+        Long price = rate != null ? rate.getPrice() : contractPrice;
         if (price == null) {
             return;
         }
@@ -517,8 +518,9 @@ public class InvoiceService {
                         line.getUnitPrice(),
                         line.getAmount()))
                 .toList();
+        YearMonth period = YearMonth.parse(invoice.getPeriod());
         Long contractRent = contractRepository
-                .findFirstCoveringDate(room.getId(), YearMonth.parse(invoice.getPeriod()).atDay(1))
+                .findFirstCoveringPeriod(room.getId(), period.atDay(1), period.atEndOfMonth())
                 .map(Contract::getMonthlyRent)
                 .orElse(null);
         return new BillingDtos.InvoiceDetailResponse(

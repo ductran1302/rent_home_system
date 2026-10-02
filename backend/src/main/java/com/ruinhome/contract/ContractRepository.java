@@ -25,11 +25,13 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     @Query("""
             select c from Contract c
             where c.room.id = :roomId
-              and c.startDate <= :date
-              and c.endDate >= :date
+              and c.startDate <= :periodEnd
+              and c.endDate >= :periodStart
             order by c.startDate desc
             """)
-    Optional<Contract> findFirstCoveringDate(@Param("roomId") Long roomId, @Param("date") LocalDate date);
+    Optional<Contract> findFirstCoveringPeriod(@Param("roomId") Long roomId,
+                                               @Param("periodStart") LocalDate periodStart,
+                                               @Param("periodEnd") LocalDate periodEnd);
 
     boolean existsByRoomIdAndStatus(Long roomId, ContractStatus status);
 

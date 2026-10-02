@@ -65,13 +65,22 @@ class InvoiceReadingsTest {
     }
 
     private Long createRoom(String houseCode, String roomNumber) {
+        return createRoom(houseCode, roomNumber, null);
+    }
+
+    private Long createRoom(String houseCode, String roomNumber, java.util.Map<String, Long> feePrices) {
+        return createRoom(houseCode, roomNumber, LocalDate.of(2030, 1, 1), feePrices);
+    }
+
+    private Long createRoom(String houseCode, String roomNumber, LocalDate contractStart,
+                            java.util.Map<String, Long> feePrices) {
         var owner = personService.create(new PersonDtos.PersonRequest("Chu Nha " + houseCode, null, null, null));
         var house = houseService.create(new HouseDtos.HouseRequest(
                 houseCode, "Nha " + houseCode, "Dia chi " + houseCode, owner.id(), null, null));
         var room = roomService.create(new RoomDtos.RoomRequest(house.id(), roomNumber, null, null));
         contractService.create(new ContractDtos.ContractCreateRequest(
                 room.id(), owner.id(), 3_000_000L,
-                LocalDate.of(2030, 1, 1), LocalDate.of(2030, 12, 31), null, null, null));
+                contractStart, LocalDate.of(2030, 12, 31), null, feePrices, null));
         return room.id();
     }
 
@@ -221,5 +230,74 @@ class InvoiceReadingsTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.CONFLICT));
+    }
+
+    @Test
+    void feeRateOfPeriodWinsOverContractPrice() {
+        asRoot();
+        Long roomId = createRoom("NHA-RD-7", "R107", java.util.Map.of("DIEN", 4000L));
+        meter(roomId, "DIEN", "2030-02", "100");
+        meter(roomId, "DIEN", "2030-03", "150");
+        rate("DIEN", "2030-03", 3500);
+
+        invoiceService.generate("2030-03");
+        InvoiceLine line = dienLine(invoiceOf(roomId, "2030-03"));
+        assertThat(line).isNotNull();
+        assertThat(line.getUnitPrice()).isEqualTo(3500L);
+        assertThat(line.getAmount()).isEqualTo(175_000L);
+    }
+
+    @Test
+    void contractPriceUsedWhenNoRateForPeriod() {
+        asRoot();
+        Long roomId = createRoom("NHA-RD-8", "R108", java.util.Map.of("DIEN", 4000L));
+        meter(roomId, "DIEN", "2030-02", "100");
+        meter(roomId, "DIEN", "2030-03", "150");
+
+        invoiceService.generate("2030-03");
+        InvoiceLine line = dienLine(invoiceOf(roomId, "2030-03"));
+        assertThat(line).isNotNull();
+        assertThat(line.getUnitPrice()).isEqualTo(4000L);
+
+        var detail = invoiceService.updateReadings(invoiceOf(roomId, "2030-03").getId(),
+                new BillingDtos.UsageReadingsRequest(new BigDecimal("100"), new BigDecimal("130"), null, null));
+        assertThat(detail.totalAmount()).isEqualTo(3_120_000L);
+    }
+
+    @Test
+    void readingsRejectedWithGenericMessageWhenNoPriceConfigured() {
+        asRoot();
+        Long roomId = createRoom("NHA-RD-9", "R109");
+        meter(roomId, "DIEN", "2030-02", "100");
+        invoiceService.generate("2030-03");
+        Long invoiceId = invoiceOf(roomId, "2030-03").getId();
+
+        assertThatThrownBy(() -> invoiceService.updateReadings(invoiceId,
+                new BillingDtos.UsageReadingsRequest(new BigDecimal("100"), new BigDecimal("130"), null, null)))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> {
+                    assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(ex.getMessage()).contains("Chưa có cấu hình giá kỳ 03/2030");
+                });
+    }
+
+    @Test
+    void contractStartingMidPeriodStillProvidesPrice() {
+        asRoot();
+        Long roomId = createRoom("NHA-RD-10", "R110", LocalDate.of(2030, 3, 5),
+                java.util.Map.of("DIEN", 4000L));
+        meter(roomId, "DIEN", "2030-02", "100");
+
+        invoiceService.generate("2030-03");
+        Invoice invoice = invoiceOf(roomId, "2030-03");
+
+        var detail = invoiceService.updateReadings(invoice.getId(),
+                new BillingDtos.UsageReadingsRequest(new BigDecimal("100"), new BigDecimal("130"), null, null));
+
+        InvoiceLine line = dienLine(invoiceOf(roomId, "2030-03"));
+        assertThat(line).isNotNull();
+        assertThat(line.getUnitPrice()).isEqualTo(4000L);
+        assertThat(line.getQuantity()).isEqualByComparingTo("30");
+        assertThat(detail.totalAmount()).isEqualTo(3_120_000L);
     }
 }
