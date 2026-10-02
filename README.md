@@ -8,6 +8,7 @@
 - **Tài khoản**: trang quản lý tài khoản dành cho `ADMIN`: tạo tài khoản quản lý và người dùng, liên kết hồ sơ cá nhân, đặt thời hạn quản lý, bật tắt tài khoản (không xoá cứng); admin không phải gốc chỉ thao tác trong khu vực của mình.
 - **Người**: thông tin liên hệ, CCCD, tìm kiếm, phân trang, xoá mềm; kèm ngày tạo, người tạo, ngày cập nhật, người cập nhật.
 - **Nhà và phòng**: cây nhà và phòng, diện tích, trạng thái đã có người thuê hay chưa. Tạo sửa nhà và phòng là quyền của `ADMIN`, `MANAGER` chỉ xem.
+- **Tài sản**: danh mục tài sản theo phòng (nhóm, tình trạng, giá mua), lịch sử sửa chữa kèm chi phí, ảnh đối chiếu (mỗi tài sản và mỗi lần sửa tối đa 5 ảnh trước hoặc sau khi sửa), và bàn giao hoặc thu hồi tài sản ngay trong biểu mẫu hợp đồng. Tài sản đang giao trong hợp đồng thì xoá mềm trả `409`.
 - **Hợp đồng**: thuê theo kỳ, liệt kê người cùng thuê, trạng thái `ACTIVE` / `EXPIRED` / `TERMINATED`, thanh lý hợp đồng, ghi chú thêm (ngày dọn đến, tiền cọc), giá điện, nước, mạng, dịch vụ chung theo từng hợp đồng (để trống thì lấy giá chung của kỳ). Mỗi phòng chỉ có tối đa một hợp đồng `ACTIVE` (bắt buộc ở tầng database).
 - **Hóa đơn**: loại phí và biểu giá theo kỳ, chỉ số điện nước, sinh hóa đơn theo kỳ, phát hành, thu tiền từng phần, thêm sửa dòng tiền thủ công, đổi giá phòng của từng kỳ hóa đơn kèm lý do.
 - **Thống kê**: số nhà, số phòng, phòng trống, hợp đồng còn hiệu lực, hóa đơn chưa thu, công nợ còn lại.
@@ -18,7 +19,7 @@
 | Thành phần | Công nghệ |
 | --- | --- |
 | Backend | Spring Boot 3.5, Java 17 (dev) / 21 (Docker), Spring Security + JWT, Spring Data JPA |
-| Database | PostgreSQL 16, Flyway (`V1__init.sql` đến `V7__person_audit_account_manager.sql`) |
+| Database | PostgreSQL 16, Flyway (`V1__init.sql` đến `V11__asset_photo.sql`) |
 | Frontend | Vite 7, React 19, TypeScript 5, Ant Design 5, TanStack Query 5, React Router 7, axios |
 | Packaging | Docker Compose: `postgres`, `api`, `web` (nginx) |
 
@@ -76,6 +77,7 @@ Migration `V3__seed_demo_data.sql` tự nạp dữ liệu demo khi khởi độn
 - Biểu giá điện, nước, internet, dịch vụ cho kỳ `2026-08` và `2026-09`
 - Chỉ số điện nước 3 kỳ (`2026-07` đến `2026-09`) cho 4 phòng đang thuê
 - 8 hóa đơn có đủ 5 dòng tiền: kỳ `2026-08` đã thu đủ, kỳ `2026-09` đủ bốn trạng thái `PAID`, `PARTIAL`, `UNPAID`, `DRAFT`
+- 3 lần sửa chữa mẫu cho tài sản (`V10__asset_repair.sql`)
 - Giá phí theo hợp đồng (`V4__contract_fee_price.sql`): phòng `A101` đủ 4 loại, `B101` điện nước, `B201` mạng dịch vụ, `A102` để trống để thấy nhánh lấy giá chung
 
 Tài khoản demo:

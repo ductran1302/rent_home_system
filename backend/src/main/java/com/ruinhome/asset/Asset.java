@@ -36,6 +36,10 @@ public class Asset extends BaseEntity {
     @Column(name = "price", nullable = false)
     private Long price;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, length = 30)
+    private AssetCategory category = AssetCategory.KHAC;
+
     @Column(name = "purchase_date")
     private LocalDate purchaseDate;
 

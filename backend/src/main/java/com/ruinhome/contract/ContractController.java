@@ -61,6 +61,20 @@ public class ContractController {
         return contractService.update(id, request);
     }
 
+    @GetMapping("/{id}/assets")
+    public ContractDtos.ContractAssetListResponse listAssets(@PathVariable Long id) {
+        return contractService.listContractAssets(id);
+    }
+
+    @PostMapping("/{id}/assets/{assetId}/return")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public ContractDtos.ContractAssetItemResponse returnAsset(
+            @PathVariable Long id,
+            @PathVariable Long assetId,
+            @Valid @RequestBody ContractDtos.ContractAssetReturnRequest request) {
+        return contractService.returnAsset(id, assetId, request);
+    }
+
     @PostMapping("/{id}/terminate")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public ContractDtos.ContractResponse terminate(@PathVariable Long id) {

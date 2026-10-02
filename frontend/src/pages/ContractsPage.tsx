@@ -23,6 +23,7 @@ import { useEffect, useRef, useState, type Key, type ReactNode } from 'react'
 import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
 import ContractPhotoFrame from '../components/ContractPhotoFrame'
+import ContractAssetDrawer from '../components/ContractAssetDrawer'
 import { formatVnd } from '../utils/format'
 
 interface ContractRow {
@@ -70,6 +71,7 @@ interface ContractFormValues {
   startDate: Dayjs
   endDate: Dayjs
   tenantIds?: number[]
+  assetIds?: number[]
   feePrices?: Record<FeeCode, number | undefined>
   note?: string
 }
@@ -78,8 +80,19 @@ interface EditFormValues {
   monthlyRent: number
   endDate: Dayjs
   tenantIds?: number[]
+  assetIds?: number[]
   feePrices?: Record<FeeCode, number | undefined>
   note?: string
+}
+
+interface AssetOption {
+  id: number
+  code: string
+  name: string
+}
+
+interface ContractAssetListData {
+  items: { assetId: number }[]
 }
 
 type FeeCode = 'DIEN' | 'NUOC' | 'MANG' | 'DICH_VU'
@@ -178,6 +191,7 @@ export default function ContractsPage() {
   const [createForm] = Form.useForm<ContractFormValues>()
   const [editForm] = Form.useForm<EditFormValues>()
   const [formHouseId, setFormHouseId] = useState<number | null>(null)
+  const [assetContractId, setAssetContractId] = useState<number | null>(null)
   const [expandedKeys, setExpandedKeys] = useState<Key[]>([])
   const [expandAll, setExpandAll] = useState(false)
 
@@ -237,6 +251,34 @@ export default function ContractsPage() {
     queryFn: async () => (await api.get<RoomOption[]>(`/rooms/by-house/${formHouseId}`)).data,
   })
 
+  const watchedRoomId = Form.useWatch('roomId', createForm)
+  const contractRoomId = editing ? editing.roomId : (watchedRoomId ?? null)
+
+  const contractAssetsQuery = useQuery({
+    enabled: createOpen && contractRoomId != null,
+    queryKey: ['assets-for-contract', contractRoomId],
+    queryFn: async () =>
+      (
+        await api.get<{ items: AssetOption[] }>('/assets', {
+          params: { roomId: contractRoomId, page: 0, size: 100 },
+        })
+      ).data.items,
+  })
+
+  const handoverQuery = useQuery({
+    enabled: createOpen && editing != null,
+    queryKey: ['contract-assets', editing?.id],
+    queryFn: async () =>
+      (await api.get<ContractAssetListData>(`/contracts/${editing?.id}/assets`)).data,
+    select: (data: ContractAssetListData) => data.items.map((item) => item.assetId),
+  })
+
+  useEffect(() => {
+    if (editing && handoverQuery.data) {
+      editForm.setFieldValue('assetIds', handoverQuery.data)
+    }
+  }, [editing, handoverQuery.data, editForm])
+
   const createMutation = useMutation({
     mutationFn: async (values: ContractFormValues) =>
       api.post('/contracts', {
@@ -246,6 +288,7 @@ export default function ContractsPage() {
         startDate: values.startDate.format('YYYY-MM-DD'),
         endDate: values.endDate.format('YYYY-MM-DD'),
         tenantIds: values.tenantIds ?? [],
+        assetIds: values.assetIds ?? [],
         feePrices: compactFeePrices(values.feePrices),
         note: values.note?.trim() || null,
       }),
@@ -265,6 +308,7 @@ export default function ContractsPage() {
         monthlyRent: values.monthlyRent,
         endDate: values.endDate.format('YYYY-MM-DD'),
         tenantIds: values.tenantIds ?? [],
+        assetIds: values.assetIds ?? null,
         feePrices: compactFeePrices(values.feePrices),
         note: values.note?.trim() || null,
       }),
@@ -403,7 +447,7 @@ export default function ContractsPage() {
           {
             title: 'Thao tác',
             key: 'actions',
-            width: 200,
+            width: 250,
             fixed: 'right' as const,
             render: (_: unknown, row: ContractRow) => (
               <Space>
@@ -425,6 +469,9 @@ export default function ContractsPage() {
                     </Popconfirm>
                   </>
                 )}
+                <Button size="small" onClick={() => setAssetContractId(row.id)}>
+                  Tài sản
+                </Button>
               </Space>
             ),
           },
@@ -592,6 +639,7 @@ export default function ContractsPage() {
                 disabled={formHouseId == null}
                 loading={roomsQuery.isLoading}
                 options={roomOptions}
+                onChange={() => createForm.setFieldValue('assetIds', undefined)}
                 notFoundContent={roomsQuery.isLoading ? 'Đang tải...' : 'Nhà này không còn phòng trống'}
               />
             </Form.Item>
@@ -658,6 +706,23 @@ export default function ContractsPage() {
                 options={personOptions}
               />
             </Form.Item>
+            <Form.Item label="Tài sản bàn giao (không bắt buộc)" name="assetIds">
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                placeholder={contractRoomId ? 'Chọn tài sản của phòng này' : 'Hãy chọn phòng trước'}
+                disabled={contractRoomId == null}
+                loading={contractAssetsQuery.isLoading}
+                options={(contractAssetsQuery.data ?? []).map((asset) => ({
+                  value: asset.id,
+                  label: `${asset.code} - ${asset.name}`,
+                }))}
+                notFoundContent={
+                  contractAssetsQuery.isLoading ? 'Đang tải...' : 'Phòng này chưa có tài sản nào'
+                }
+              />
+            </Form.Item>
             <Form.Item
               label="Ghi chú (không bắt buộc)"
               name="note"
@@ -717,6 +782,23 @@ export default function ContractsPage() {
                 options={personOptions}
               />
             </Form.Item>
+            <Form.Item label="Tài sản bàn giao (không bắt buộc)" name="assetIds">
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                placeholder={contractRoomId ? 'Chọn tài sản của phòng này' : 'Hãy chọn phòng trước'}
+                disabled={contractRoomId == null}
+                loading={contractAssetsQuery.isLoading}
+                options={(contractAssetsQuery.data ?? []).map((asset) => ({
+                  value: asset.id,
+                  label: `${asset.code} - ${asset.name}`,
+                }))}
+                notFoundContent={
+                  contractAssetsQuery.isLoading ? 'Đang tải...' : 'Phòng này chưa có tài sản nào'
+                }
+              />
+            </Form.Item>
             <FeePriceFields />
             <Form.Item
               label="Ghi chú (không bắt buộc)"
@@ -734,6 +816,12 @@ export default function ContractsPage() {
           </Form>
         )}
       </Modal>
+
+      <ContractAssetDrawer
+        contractId={assetContractId}
+        canManage={canManage}
+        onClose={() => setAssetContractId(null)}
+      />
     </div>
   )
 }

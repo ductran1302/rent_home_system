@@ -1,5 +1,10 @@
 package com.ruinhome.contract;
 
+import com.ruinhome.asset.Asset;
+import com.ruinhome.asset.AssetCondition;
+import com.ruinhome.asset.AssetRepair;
+import com.ruinhome.asset.AssetRepairRepository;
+import com.ruinhome.asset.AssetRepository;
 import com.ruinhome.auth.CurrentUserService;
 import com.ruinhome.house.House;
 import com.ruinhome.house.HouseRepository;
@@ -18,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -33,21 +39,29 @@ public class ContractService {
 
     private final ContractRepository contractRepository;
     private final ContractFeePriceRepository contractFeePriceRepository;
+    private final ContractAssetRepository contractAssetRepository;
     private final RoomRepository roomRepository;
     private final HouseRepository houseRepository;
     private final PersonRepository personRepository;
+    private final AssetRepository assetRepository;
+    private final AssetRepairRepository assetRepairRepository;
     private final CurrentUserService currentUserService;
 
     public ContractService(ContractRepository contractRepository,
                            ContractFeePriceRepository contractFeePriceRepository,
+                           ContractAssetRepository contractAssetRepository,
                            RoomRepository roomRepository,
                            HouseRepository houseRepository, PersonRepository personRepository,
+                           AssetRepository assetRepository, AssetRepairRepository assetRepairRepository,
                            CurrentUserService currentUserService) {
         this.contractRepository = contractRepository;
         this.contractFeePriceRepository = contractFeePriceRepository;
+        this.contractAssetRepository = contractAssetRepository;
         this.roomRepository = roomRepository;
         this.houseRepository = houseRepository;
         this.personRepository = personRepository;
+        this.assetRepository = assetRepository;
+        this.assetRepairRepository = assetRepairRepository;
         this.currentUserService = currentUserService;
     }
 
@@ -110,6 +124,7 @@ public class ContractService {
         contract.setTenants(new LinkedHashSet<>(findActivePersons(request.tenantIds(), "người cùng thuê")));
         Contract saved = contractRepository.save(contract);
         replaceFeePrices(saved, request.feePrices());
+        replaceAssets(saved, request.assetIds());
         return toResponse(saved);
     }
 
@@ -128,7 +143,51 @@ public class ContractService {
         contract.setTenants(new LinkedHashSet<>(findActivePersons(request.tenantIds(), "người cùng thuê")));
         Contract saved = contractRepository.save(contract);
         replaceFeePrices(saved, request.feePrices());
+        replaceAssets(saved, request.assetIds());
         return toResponse(saved);
+    }
+
+    @Transactional
+    public ContractDtos.ContractAssetListResponse listContractAssets(Long id) {
+        Contract contract = findVisible(id);
+        checkHouseVisible(contract.getRoom().getHouse());
+        List<ContractAsset> rows = contractAssetRepository.findByContractIdOrderByAssetCodeAsc(contract.getId());
+        Map<Long, RepairStat> stats = loadRepairStats(rows.stream()
+                .map(row -> row.getAsset().getId()).toList());
+        List<ContractDtos.ContractAssetItemResponse> items = rows.stream()
+                .map(row -> toAssetItem(row, stats.getOrDefault(row.getAsset().getId(), RepairStat.EMPTY)))
+                .toList();
+        long repairCost = rows.isEmpty() ? 0L : assetRepairRepository.sumCostByAssetIdsBetween(
+                rows.stream().map(row -> row.getAsset().getId()).toList(),
+                contract.getStartDate(), contract.getEndDate());
+        var summary = new ContractDtos.ContractAssetSummaryResponse(
+                items.size(),
+                (int) items.stream()
+                        .filter(item -> item.condition() == AssetCondition.BROKEN).count(),
+                (int) items.stream()
+                        .filter(item -> item.condition() == AssetCondition.NEEDS_REPAIR).count(),
+                repairCost);
+        return new ContractDtos.ContractAssetListResponse(items, summary);
+    }
+
+    @Transactional
+    public ContractDtos.ContractAssetItemResponse returnAsset(Long id, Long assetId,
+                                                              ContractDtos.ContractAssetReturnRequest request) {
+        Contract contract = findVisible(id);
+        checkHouseVisible(contract.getRoom().getHouse());
+        ContractAsset row = contractAssetRepository.findByContractIdAndAssetId(contract.getId(), assetId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Không tìm thấy tài sản trong hợp đồng"));
+        Asset asset = row.getAsset();
+        row.setReturnCondition(request.returnCondition());
+        row.setReturnedAt(request.returnedAt() != null
+                ? request.returnedAt().atStartOfDay()
+                : LocalDateTime.now());
+        asset.setCondition(request.returnCondition());
+        contractAssetRepository.save(row);
+        assetRepository.save(asset);
+        return toAssetItem(contractAssetRepository.save(row),
+                loadRepairStats(List.of(asset.getId())).getOrDefault(asset.getId(), RepairStat.EMPTY));
     }
 
     @Transactional
@@ -230,8 +289,43 @@ public class ContractService {
         contractFeePriceRepository.saveAll(rows);
     }
 
-    private Map<Long, Map<String, Long>> loadFeePrices(List<Long> contractIds) {
-        if (contractIds.isEmpty()) {
+    private void replaceAssets(Contract contract, List<Long> assetIds) {
+        if (assetIds == null) {
+            return;
+        }
+        contractAssetRepository.deleteByContractId(contract.getId());
+        contractAssetRepository.flush();
+        Set<Long> distinct = new LinkedHashSet<>(assetIds);
+        if (distinct.isEmpty()) {
+            return;
+        }
+        for (Long assetId : distinct) {
+            Asset asset = assetRepository.findByIdAndActiveTrue(assetId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Không tìm thấy tài sản"));
+            if (!asset.getRoom().getId().equals(contract.getRoom().getId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Tài sản không thuộc phòng của hợp đồng");
+            }
+            ContractAsset row = new ContractAsset();
+            row.setContract(contract);
+            row.setAsset(asset);
+            row.setHandoverCondition(asset.getCondition());
+            contractAssetRepository.save(row);
+        }
+    }
+
+    private Map<Long, RepairStat> loadRepairStats(List<Long> assetIds) {
+        Map<Long, RepairStat> stats = new HashMap<>();
+        assetIds.forEach(id -> stats.put(id, RepairStat.EMPTY));
+        for (AssetRepair repair : assetRepairRepository.findByAssetIdIn(assetIds)) {
+            Long assetId = repair.getAsset().getId();
+            RepairStat current = stats.getOrDefault(assetId, RepairStat.EMPTY);
+            stats.put(assetId, new RepairStat(current.count() + 1, current.cost() + repair.getCost()));
+        }
+        return stats;
+    }
+
+    private Map<Long, Map<String, Long>> loadFeePrices(List<Long> contractIds) {        if (contractIds.isEmpty()) {
             return Map.of();
         }
         Map<Long, Map<String, Long>> result = new HashMap<>();
@@ -285,5 +379,27 @@ public class ContractService {
                 tenants,
                 feePrices == null ? Map.of() : feePrices,
                 contract.getNote());
+    }
+
+    private ContractDtos.ContractAssetItemResponse toAssetItem(ContractAsset row, RepairStat stat) {
+        Asset asset = row.getAsset();
+        return new ContractDtos.ContractAssetItemResponse(
+                row.getId(),
+                asset.getId(),
+                asset.getCode(),
+                asset.getName(),
+                asset.getCategory(),
+                asset.getPrice(),
+                asset.getCondition(),
+                row.getHandoverCondition(),
+                row.getReturnCondition(),
+                row.getHandoverNote(),
+                row.getReturnedAt() != null ? row.getReturnedAt().toLocalDate() : null,
+                stat.count(),
+                stat.cost());
+    }
+
+    private record RepairStat(int count, long cost) {
+        private static final RepairStat EMPTY = new RepairStat(0, 0L);
     }
 }

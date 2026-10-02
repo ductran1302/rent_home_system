@@ -6,6 +6,7 @@ import {
   LogoutOutlined,
   PayCircleOutlined,
   TeamOutlined,
+  ToolOutlined,
   UserOutlined,
 } from '@ant-design/icons'
 import { Avatar, Dropdown, Layout, Menu, Space, Typography } from 'antd'
@@ -36,6 +37,7 @@ export default function AppLayout() {
       : [
           { key: '/houses', icon: <HomeOutlined />, label: 'Nhà & phòng' },
           { key: '/persons', icon: <TeamOutlined />, label: 'Người' },
+          { key: '/assets', icon: <ToolOutlined />, label: 'Tài sản' },
         ]),
     { key: '/contracts', icon: <FileTextOutlined />, label: 'Hợp đồng' },
     { key: '/billing', icon: <PayCircleOutlined />, label: 'Hóa đơn' },

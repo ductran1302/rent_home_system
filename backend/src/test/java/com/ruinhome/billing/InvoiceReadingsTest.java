@@ -80,7 +80,7 @@ class InvoiceReadingsTest {
         var room = roomService.create(new RoomDtos.RoomRequest(house.id(), roomNumber, null, null));
         contractService.create(new ContractDtos.ContractCreateRequest(
                 room.id(), owner.id(), 3_000_000L,
-                contractStart, LocalDate.of(2030, 12, 31), null, feePrices, null));
+                contractStart, LocalDate.of(2030, 12, 31), null, null, feePrices, null));
         return room.id();
     }
 

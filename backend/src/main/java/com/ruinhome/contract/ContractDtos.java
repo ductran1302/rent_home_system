@@ -1,6 +1,8 @@
 package com.ruinhome.contract;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.ruinhome.asset.AssetCategory;
+import com.ruinhome.asset.AssetCondition;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
@@ -21,6 +23,7 @@ public final class ContractDtos {
             @NotNull @JsonFormat(pattern = "yyyy-MM-dd") LocalDate startDate,
             @NotNull @JsonFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
             List<Long> tenantIds,
+            List<Long> assetIds,
             Map<String, Long> feePrices,
             @Size(max = 500) String note) {
     }
@@ -29,6 +32,7 @@ public final class ContractDtos {
             @NotNull @PositiveOrZero Long monthlyRent,
             @NotNull @JsonFormat(pattern = "yyyy-MM-dd") LocalDate endDate,
             List<Long> tenantIds,
+            List<Long> assetIds,
             Map<String, Long> feePrices,
             @Size(max = 500) String note) {
     }
@@ -53,5 +57,38 @@ public final class ContractDtos {
             List<TenantResponse> tenants,
             Map<String, Long> feePrices,
             String note) {
+    }
+
+    public record ContractAssetItemResponse(
+            Long id,
+            Long assetId,
+            String code,
+            String name,
+            AssetCategory category,
+            Long price,
+            AssetCondition condition,
+            AssetCondition handoverCondition,
+            AssetCondition returnCondition,
+            String handoverNote,
+            @JsonFormat(pattern = "yyyy-MM-dd") LocalDate returnedAt,
+            int repairCount,
+            long repairCost) {
+    }
+
+    public record ContractAssetSummaryResponse(
+            int total,
+            int brokenCount,
+            int needsRepairCount,
+            long repairCost) {
+    }
+
+    public record ContractAssetListResponse(
+            List<ContractAssetItemResponse> items,
+            ContractAssetSummaryResponse summary) {
+    }
+
+    public record ContractAssetReturnRequest(
+            @NotNull AssetCondition returnCondition,
+            @JsonFormat(pattern = "yyyy-MM-dd") LocalDate returnedAt) {
     }
 }

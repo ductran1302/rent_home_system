@@ -12,6 +12,7 @@ const HousesPage = lazy(() => import('./pages/HousesPage'))
 const PersonsPage = lazy(() => import('./pages/PersonsPage'))
 const ContractsPage = lazy(() => import('./pages/ContractsPage'))
 const BillingPage = lazy(() => import('./pages/BillingPage'))
+const AssetsPage = lazy(() => import('./pages/AssetsPage'))
 const AccountsPage = lazy(() => import('./pages/AccountsPage'))
 
 export default function App() {
@@ -47,6 +48,14 @@ export default function App() {
           />
           <Route path="contracts" element={<ContractsPage />} />
           <Route path="billing" element={<BillingPage />} />
+          <Route
+            path="assets"
+            element={
+              <RoleRoute roles={['ADMIN', 'MANAGER']}>
+                <AssetsPage />
+              </RoleRoute>
+            }
+          />
           <Route
             path="accounts"
             element={

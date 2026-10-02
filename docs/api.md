@@ -28,7 +28,7 @@ Tài khoản `MANAGER` có thời hạn quản lý (`managerStartDate`, `manager
 
 ## Quy ước chung
 
-**Phân trang** (person, contract, invoice): trả object bốn khóa, `size` tối đa 100.
+**Phân trang** (person, contract, invoice, asset): trả object bốn khóa, `size` tối đa 100.
 
 ```json
 { "items": [], "total": 0, "page": 0, "size": 20 }
@@ -44,6 +44,7 @@ Tài khoản `MANAGER` có thời hạn quản lý (`managerStartDate`, `manager
 | 401 | Thiếu hoặc sai token, sai thông tin đăng nhập |
 | 403 | Sai vai trò hoặc ngoài phạm vi nhà |
 | 404 | Không tìm thấy bản ghi |
+| 409 | Xung đột: trùng tên, người còn tài khoản đang bật, tài sản đang giao trong hợp đồng |
 | 500 | Lỗi hệ thống, message dùng chung "Đã có lỗi xảy ra, vui lòng thử lại" |
 
 ## Endpoint
@@ -105,21 +106,56 @@ Person trả về kèm `createdAt`, `updatedAt`, `createdBy`, `updatedBy` (ISO-8
 
 `note` là ghi chú tự do tối đa 500 ký tự cho nhà/phòng, gửi chuỗi rỗng hoặc `null` thì xoá ghi chú. House và Room trả về kèm `note`, `createdAt`, `updatedAt` (ISO-8601).
 
+### Tài sản
+
+| Method | Path | Vai trò | Body / query | Trả về |
+| --- | --- | --- | --- | --- |
+| GET | `/api/assets` | ADMIN, MANAGER | `houseId`, `roomId`, `condition`, `category`, `q`, `page=0`, `size=20` | Phân trang |
+| GET | `/api/assets/{id}` | ADMIN, MANAGER | | Asset |
+| POST | `/api/assets` | ADMIN, MANAGER | `{ roomId*, code*, name*, category*, price*, purchaseDate, condition*, note }` | `201` + Asset |
+| PUT | `/api/assets/{id}` | ADMIN, MANAGER | như trên | Asset |
+| DELETE | `/api/assets/{id}` | ADMIN, MANAGER | | `{ "message": "Đã xoá tài sản" }` (xoá mềm) |
+| GET | `/api/assets/repairs` | ADMIN, MANAGER | `houseId`, `roomId`, `status`, `q`, `page`, `size` | Phân trang |
+| GET | `/api/assets/{id}/repairs` | ADMIN, MANAGER | | Mảng lần sửa của tài sản |
+| POST | `/api/assets/{id}/repairs` | ADMIN, MANAGER | `{ reportedAt*, description*, cost*, status*, doneAt, note }` | `201` + lần sửa |
+| PUT | `/api/assets/{id}/repairs/{repairId}` | ADMIN, MANAGER | như trên | lần sửa |
+| DELETE | `/api/assets/{id}/repairs/{repairId}` | ADMIN, MANAGER | | `{ "message": "Đã xoá lịch sử sửa chữa" }` |
+| GET | `/api/assets/{id}/photos` | Đọc | | Mảng ảnh `{ id, originalName, uploadedAt, stage, contentUrl }` |
+| POST | `/api/assets/{id}/photos` | ADMIN, MANAGER | `file` (multipart) | `201` + ảnh như trên |
+| GET | `/api/assets/{id}/photos/{photoId}/content` | Đọc | | Bytes ảnh, `Content-Type` theo file |
+| DELETE | `/api/assets/{id}/photos/{photoId}` | ADMIN, MANAGER | | `200`, không nội dung |
+| GET | `/api/assets/{id}/repairs/{repairId}/photos` | Đọc | | Mảng ảnh của lần sửa |
+| POST | `/api/assets/{id}/repairs/{repairId}/photos` | ADMIN, MANAGER | `file` (multipart), `stage` (query `TRUOC` hoặc `SAU`) | `201` + ảnh |
+| GET | `/api/assets/{id}/repairs/{repairId}/photos/{photoId}/content` | Đọc | | Bytes ảnh, `Content-Type` theo file |
+| DELETE | `/api/assets/{id}/repairs/{repairId}/photos/{photoId}` | ADMIN, MANAGER | | `200`, không nội dung |
+
+`category` nhận `GIUONG`, `TU`, `DIEU_HOA`, `BINH_NONG_LANH`, `TV`, `TU_LANH`, `BAN_GHE`, `KHAC`; `condition` nhận `GOOD`, `USED`, `NEEDS_REPAIR`, `BROKEN`; trạng thái lần sửa nhận `PENDING`, `DONE`, `CANCELLED`. `price` và `cost` là số VND không âm, `q` tìm theo mã hoặc tên (lần sửa còn tìm theo mô tả).
+
+Asset trả về kèm `houseId`, `houseName`, `roomNumber`, `repairCount`, `repairCost` (tổng chi phí các lần sửa), `photoUrl` (ảnh đầu tiên hoặc `null`) và `photoCount`; lần sửa trả về kèm mã, tên, nhà và phòng của tài sản, cộng `photoBeforeUrl` / `photoAfterUrl` (mỗi bên một ảnh `TRUOC` / `SAU` mới nhất hoặc `null`). `code` là duy nhất, trùng trả `409` "Mã tài sản đã tồn tại"; khi sửa chỉ đổi được sang phòng cùng nhà, khác nhà trả `400` "Không thể chuyển tài sản sang nhà khác". Đổi trạng thái lần sửa sang `DONE` thì `doneAt` để trống sẽ tự lấy hôm nay, và nếu tài sản đang `NEEDS_REPAIR` hoặc `BROKEN` thì tự hạ xuống `USED`. `DELETE /api/assets/{id}` trả `409` "Tài sản đang được giao trong hợp đồng".
+
+Ảnh tài sản và ảnh lần sửa cùng lưu trong `upload-dir` (Docker: volume `uploads`), ràng buộc như ảnh hợp đồng: tối đa 5 MB mỗi file, chỉ `image/jpeg`, `image/png`, `image/webp`. Mỗi tài sản tối đa 5 ảnh; mỗi lần sửa tối đa 5 ảnh, bắt buộc có `stage` (`TRUOC` là ảnh trước khi sửa, `SAU` là ảnh sau khi sửa), quá số lượng trả `400` "Tối đa 5 ảnh". Xoá tài sản hoặc lần sửa thì ảnh con xoá theo.
+
 ### Hợp đồng
 
 | Method | Path | Vai trò | Body / query | Trả về |
 | --- | --- | --- | --- | --- |
 | GET | `/api/contracts` | Đọc | `houseId`, `roomId`, `status`, `page`, `size` | Phân trang |
 | GET | `/api/contracts/{id}` | Đọc | | Contract (kèm `tenants`, `feePrices`) |
-| POST | `/api/contracts` | ADMIN, MANAGER | `{ roomId*, holderId*, monthlyRent*, startDate*, endDate*, tenantIds, feePrices, note }` | `201` + Contract |
-| PUT | `/api/contracts/{id}` | ADMIN, MANAGER | `{ monthlyRent*, endDate*, tenantIds, feePrices, note }` | Contract |
+| POST | `/api/contracts` | ADMIN, MANAGER | `{ roomId*, holderId*, monthlyRent*, startDate*, endDate*, tenantIds, assetIds, feePrices, note }` | `201` + Contract |
+| PUT | `/api/contracts/{id}` | ADMIN, MANAGER | `{ monthlyRent*, endDate*, tenantIds, assetIds, feePrices, note }` | Contract |
 | POST | `/api/contracts/{id}/terminate` | ADMIN, MANAGER | Không | Contract với `status = TERMINATED` |
+| GET | `/api/contracts/{id}/assets` | Đọc | | `{ items, summary }` |
+| POST | `/api/contracts/{id}/assets/{assetId}/return` | ADMIN, MANAGER | `{ returnCondition*, returnedAt }` | Asset item |
 
 `status` nhận `ACTIVE`, `EXPIRED`, `TERMINATED`. Tạo hợp đồng cho phòng đã có hợp đồng `ACTIVE` trả `400`.
 
 `feePrices` là object `{ "DIEN": 3400, "NUOC": 21000, "MANG": 90000, "DICH_VU": 45000 }`, đơn giá VND theo đơn vị của loại phí. Không gửi khóa thì giữ nguyên giá hiện có; gửi object rỗng thì xoá hết; giá để `null` trong object thì bỏ qua khóa đó. Loại phí ngoài bốn mã trên trả `400`. Khi tính dòng điện nước (sinh hóa đơn hoặc `readings`) ưu tiên `fee_rate` của kỳ, không có thì lấy giá riêng của hợp đồng còn hiệu lực trong kỳ (hợp đồng bắt đầu giữa kỳ vẫn tính).
 
 `note` là ghi chú tự do tối đa 500 ký tự (ký ngày, ngày dọn đến, tiền cọc...), gửi chuỗi rỗng hoặc `null` thì xoá ghi chú. Contract trả về kèm `houseCode` và `note`.
+
+`assetIds` là tài sản bàn giao cho hợp đồng: không gửi khóa thì giữ nguyên danh sách hiện có, gửi mảng rỗng thì gỡ hết, gửi mảng có phần tử thì thay đúng bằng danh sách đó. Tài sản phải thuộc phòng của hợp đồng, sai trả `400` "Tài sản không thuộc phòng của hợp đồng". `GET .../assets` trả `items` kèm tình trạng lúc giao (`handoverCondition`), lúc trả (`returnCondition`, `returnedAt`), và `repairCount` / `repairCost` là toàn bộ lần sửa của tài sản đó, cộng `summary` `{ total, brokenCount, needsRepairCount, repairCost }` (đếm theo tình trạng hiện tại; `repairCost` cộng chi phí sửa trong khoảng ngày của hợp đồng).
+
+Thu hồi tài sản bằng `POST .../return`: `returnCondition` là tình trạng lúc trả (bắt buộc, cùng giá trị với `condition` của tài sản), `returnedAt` là ngày trả dạng `yyyy-MM-dd` (để trống là hôm nay). Ghi `returnCondition` vào chính tài sản và gán `returnedAt` cho dòng giao, dòng vẫn nằm trong danh sách để phân biệt đã trả hay còn giao; tài sản không có trong hợp đồng trả `404`.
 
 ### Ảnh hợp đồng
 
