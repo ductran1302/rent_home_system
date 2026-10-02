@@ -19,7 +19,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
-import { formatDateTime } from '../utils/format'
+import { formatDateTime, formatNumber } from '../utils/format'
 
 interface HouseRow {
   id: number
@@ -119,7 +119,7 @@ export default function HousesPage() {
       return api.post<HouseRow>('/houses', payload)
     },
     onSuccess: (response) => {
-      message.success(editingHouse ? 'Đã cập nhật nhà' : 'Đã thêm nhà')
+      message.success(editingHouse ? 'Đã cập nhật nhà.' : 'Đã thêm nhà.')
       setHouseModalOpen(false)
       setEditingHouse(null)
       houseForm.resetFields()
@@ -134,7 +134,7 @@ export default function HousesPage() {
   const deleteHouseMutation = useMutation({
     mutationFn: async (id: number) => api.delete(`/houses/${id}`),
     onSuccess: () => {
-      message.success('Đã xoá nhà')
+      message.success('Đã xoá nhà.')
       setSelectedHouseId(null)
       housesQuery.refetch()
     },
@@ -155,7 +155,7 @@ export default function HousesPage() {
       return api.post<RoomRow>('/rooms', payload)
     },
     onSuccess: () => {
-      message.success(editingRoom ? 'Đã cập nhật phòng' : 'Đã thêm phòng')
+      message.success(editingRoom ? 'Đã cập nhật phòng.' : 'Đã thêm phòng.')
       setRoomModalOpen(false)
       setEditingRoom(null)
       roomForm.resetFields()
@@ -168,7 +168,7 @@ export default function HousesPage() {
   const deleteRoomMutation = useMutation({
     mutationFn: async (id: number) => api.delete(`/rooms/${id}`),
     onSuccess: () => {
-      message.success('Đã xoá phòng')
+      message.success('Đã xoá phòng.')
       roomsQuery.refetch()
       housesQuery.refetch()
     },
@@ -298,7 +298,7 @@ export default function HousesPage() {
       dataIndex: 'areaM2',
       key: 'areaM2',
       width: 130,
-      render: (value: number | null) => (value != null ? value.toLocaleString('vi-VN') : '-'),
+      render: (value: number | null) => formatNumber(value),
     },
     {
       title: 'Trạng thái',
@@ -366,8 +366,8 @@ export default function HousesPage() {
   return (
     <div>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          Nhà & phòng
+        <Typography.Title level={2} style={{ margin: 0 }}>
+          Nhà &amp; phòng
         </Typography.Title>
         {canWrite && (
           <Button type="primary" onClick={openCreateHouse}>
@@ -381,21 +381,30 @@ export default function HousesPage() {
           style={{ margin: '48px 0' }}
           description={`Không tải được danh sách nhà: ${getErrorMessage(housesQuery.error)}`}
         >
-          <Button onClick={() => housesQuery.refetch()}>Thử lại</Button>
+          <Button loading={housesQuery.isFetching} onClick={() => housesQuery.refetch()}>
+            Thử lại
+          </Button>
         </Empty>
       )}
 
-      <Table<HouseRow>
-        rowKey="id"
-        loading={housesQuery.isLoading}
-        columns={houseColumns}
-        dataSource={housesQuery.data}
-        pagination={false}
-        scroll={{ x: 1600 }}
-        locale={{
-          emptyText: <Empty description="Chưa có nhà nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
-        }}
-      />
+      {!housesQuery.isError && (
+        <Table<HouseRow>
+          rowKey="id"
+          loading={housesQuery.isLoading}
+          columns={houseColumns}
+          dataSource={housesQuery.data}
+          pagination={false}
+          scroll={{ x: 1600 }}
+          locale={{
+            emptyText: (
+              <Empty
+                description="Chưa có nhà nào, bấm Thêm nhà để tạo nhà đầu tiên"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            ),
+          }}
+        />
+      )}
 
       {selectedHouse && (
         <Card
@@ -421,22 +430,31 @@ export default function HousesPage() {
             <Descriptions.Item label="Quản lý">{selectedHouse.managerName}</Descriptions.Item>
           </Descriptions>
 
-          <Table<RoomRow>
-            rowKey="id"
-            loading={roomsQuery.isLoading}
-            columns={roomColumns}
-            dataSource={roomsQuery.data}
-            pagination={false}
-            scroll={{ x: 1130 }}
-            locale={{
-              emptyText: (
-                <Empty
-                  description="Nhà này chưa có phòng nào"
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                />
-              ),
-            }}
-          />
+          {roomsQuery.isError ? (
+            <Empty
+              style={{ margin: '48px 0' }}
+              description={`Không tải được danh sách phòng: ${getErrorMessage(roomsQuery.error)}`}
+            >
+              <Button onClick={() => roomsQuery.refetch()}>Thử lại</Button>
+            </Empty>
+          ) : (
+            <Table<RoomRow>
+              rowKey="id"
+              loading={roomsQuery.isLoading}
+              columns={roomColumns}
+              dataSource={roomsQuery.data}
+              pagination={false}
+              scroll={{ x: 1130 }}
+              locale={{
+                emptyText: (
+                  <Empty
+                    description="Nhà này chưa có phòng nào, bấm Thêm phòng để tạo phòng"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  />
+                ),
+              }}
+            />
+          )}
         </Card>
       )}
 

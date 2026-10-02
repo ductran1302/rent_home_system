@@ -5,6 +5,7 @@ export interface Me {
   role: string
   personId: number | null
   fullName: string | null
+  root: boolean
 }
 
 export interface AuthContextValue {

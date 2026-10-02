@@ -45,7 +45,7 @@ public class AuthController {
     public record LoginResponse(String token, String username, String role) {
     }
 
-    public record MeResponse(String username, Role role, Long personId, String fullName) {
+    public record MeResponse(String username, Role role, Long personId, String fullName, boolean root) {
     }
 
     @PostMapping("/login")
@@ -84,6 +84,7 @@ public class AuthController {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Phiên không hợp lệ"));
         String fullName = account.getPerson() != null ? account.getPerson().getFullName() : null;
         Long personId = account.getPerson() != null ? account.getPerson().getId() : null;
-        return new MeResponse(account.getUsername(), account.getRole(), personId, fullName);
+        return new MeResponse(account.getUsername(), account.getRole(), personId, fullName,
+                account.isRoot());
     }
 }

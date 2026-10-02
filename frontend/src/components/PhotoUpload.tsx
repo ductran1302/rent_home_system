@@ -126,17 +126,17 @@ export default function PhotoUpload({
                   <Button
                     type="text"
                     danger
-                    size="small"
                     aria-label="Xoá ảnh"
                     icon={<DeleteOutlined />}
                     style={{
                       position: 'absolute',
-                      top: 2,
-                      right: 2,
-                      width: 24,
-                      height: 24,
+                      top: 0,
+                      right: 0,
+                      width: 44,
+                      height: 44,
                       padding: 0,
                       background: token.colorBgElevated,
+                      borderRadius: token.borderRadiusSM,
                     }}
                   />
                 </Popconfirm>

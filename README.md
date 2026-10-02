@@ -4,13 +4,13 @@
 
 ## Tính năng
 
-- **Đăng nhập**: JWT, phân vai trò `ADMIN`, `MANAGER`, `USER`. Tài khoản admin mặc định `admin / admin123` được tạo khi khởi động, là admin gốc thấy toàn bộ dữ liệu. Đăng ký tài khoản mới tạo `ADMIN` chủ cho thuê, chỉ thấy khu vực của mình. Tài khoản `MANAGER` có thời hạn quản lý, hết hạn thì không đăng nhập được.
+- **Đăng nhập**: JWT, phân vai trò `ADMIN`, `MANAGER`, `USER`. Tài khoản admin gốc `admin` được tạo khi khởi động nếu đặt biến `SEED_ADMIN_PASSWORD` (môi trường dev đặt `admin123` trong `.env`), thấy toàn bộ dữ liệu. Đăng ký tài khoản tạo `ADMIN` chủ cho thuê, chỉ thấy khu vực của mình, chỉ bật khi `ALLOW_SELF_REGISTER=true` (mặc định tắt). Tài khoản `MANAGER` có thời hạn quản lý, hết hạn thì không đăng nhập được.
 - **Tài khoản**: trang quản lý tài khoản dành cho `ADMIN`: tạo tài khoản quản lý và người dùng, liên kết hồ sơ cá nhân, đặt thời hạn quản lý, bật tắt tài khoản (không xoá cứng); admin không phải gốc chỉ thao tác trong khu vực của mình.
 - **Người**: thông tin liên hệ, CCCD, tìm kiếm, phân trang, xoá mềm; kèm ngày tạo, người tạo, ngày cập nhật, người cập nhật.
 - **Nhà và phòng**: cây nhà và phòng, diện tích, trạng thái đã có người thuê hay chưa. Tạo sửa nhà và phòng là quyền của `ADMIN`, `MANAGER` chỉ xem.
 - **Tài sản**: danh mục tài sản theo phòng (nhóm, tình trạng, giá mua), lịch sử sửa chữa kèm chi phí, ảnh đối chiếu (mỗi tài sản và mỗi lần sửa tối đa 5 ảnh trước hoặc sau khi sửa), và bàn giao hoặc thu hồi tài sản ngay trong biểu mẫu hợp đồng. Tài sản đang giao trong hợp đồng thì xoá mềm trả `409`.
 - **Hợp đồng**: thuê theo kỳ, liệt kê người cùng thuê, trạng thái `ACTIVE` / `EXPIRED` / `TERMINATED`, thanh lý hợp đồng, ghi chú thêm (ngày dọn đến, tiền cọc), giá điện, nước, mạng, dịch vụ chung theo từng hợp đồng (để trống thì lấy giá chung của kỳ). Mỗi phòng chỉ có tối đa một hợp đồng `ACTIVE` (bắt buộc ở tầng database).
-- **Hóa đơn**: loại phí và biểu giá theo kỳ, chỉ số điện nước, sinh hóa đơn theo kỳ, phát hành, thu tiền từng phần, thêm sửa dòng tiền thủ công, đổi giá phòng của từng kỳ hóa đơn kèm lý do.
+- **Hóa đơn**: loại phí và biểu giá theo kỳ (chỉ admin gốc cấu hình giá chung), chỉ số điện nước, sinh hóa đơn theo kỳ, phát hành, thu tiền từng phần, thêm sửa dòng tiền thủ công, đổi giá phòng của từng kỳ hóa đơn kèm lý do.
 - **Thống kê**: số nhà, số phòng, phòng trống, hợp đồng còn hiệu lực, hóa đơn chưa thu, công nợ còn lại.
 - **Ảnh hợp đồng**: API upload, xem, xoá đã có (tối đa 5 MB/ảnh, `jpg` / `png` / `webp`). UI đặt khung ảnh trống ở biểu mẫu sửa hợp đồng, phần upload làm ở giai đoạn sau.
 
@@ -49,16 +49,23 @@ RuinHome/
 Yêu cầu: Docker Desktop đang chạy.
 
 ```powershell
+copy .env.example .env        # lần đầu, điền JWT_SECRET (xem .env.example)
 docker compose up -d --build     # build image api + web, khởi động cả stack
 docker compose ps                # kiểm tra trạng thái
 docker compose logs -f api       # log backend
 ```
 
+`.env` đã được gitignore, bắt buộc có `JWT_SECRET` (tối thiểu 32 ký tự) và `SEED_ADMIN_PASSWORD`, thiếu thì `docker compose up` báo lỗi ngay. Sinh secret mới:
+
+```powershell
+powershell -Command "[guid]::NewGuid().ToString('N')+([guid]::NewGuid().ToString('N'))"
+```
+
 | Dịch vụ | Cổng | Ghi chú |
 | --- | --- | --- |
 | web (nginx) | 80 | SPA tĩnh, map `/api/` sang `api:8080` |
-| api | 8081 | REST `/api/**`, host `8081` -> container `8080` |
-| postgres | 5432 | volume `pgdata` |
+| api | 127.0.0.1:8081 | REST `/api/**`, chỉ nghe trên localhost |
+| postgres | 127.0.0.1:5432 | volume `pgdata`, chỉ nghe trên localhost |
 
 Mở `http://localhost`, đăng nhập `admin / admin123`.
 
@@ -84,7 +91,7 @@ Tài khoản demo:
 
 | Tài khoản | Mật khẩu | Vai trò | Dữ liệu liên quan |
 | --- | --- | --- | --- |
-| `admin` | `admin123` | `ADMIN` | tạo khi khởi động, admin gốc thấy toàn bộ |
+| `admin` | `admin123` | `ADMIN` | tạo khi khởi động (biến `SEED_ADMIN_PASSWORD` trong `.env`), admin gốc thấy toàn bộ |
 | `quanly` | `quanly123` | `MANAGER` | quản lý nhà `H001`, chỉ thấy nhà đó |
 | `nguoidung` | `nguoidung123` | `USER` | thuê phòng `A101`, chỉ đọc |
 
@@ -94,7 +101,7 @@ Xoá sạch và lấy lại dữ liệu mẫu: `docker compose down -v` rồi `d
 
 Yêu cầu: JDK 17 (Corretto 17 tại `C:\Users\Admin\.jdks\corretto-17.0.17`), Node.js và npm, PostgreSQL đang chạy (dùng luôn Postgres của Docker: `docker compose up -d postgres`).
 
-Toàn bộ lệnh đi qua `dev.cmd`, file này set `JAVA_HOME` riêng cho phiên chạy nên không đụng vào config hệ thống. Máy này chặn script `.ps1` nên đừng gọi npm/mvn trực tiếp.
+Toàn bộ lệnh đi qua `dev.cmd`, file này set `JAVA_HOME` riêng cho phiên chạy nên không đụng vào config hệ thống. Máy này chặn script `.ps1` nên đừng gọi npm/mvn trực tiếp. `dev.cmd backend` tự nạp file `.env` ở thư mục gốc (cùng biến với Docker), thiếu `JWT_SECRET` thì backend dừng ngay khi khởi động.
 
 ```powershell
 .\dev.cmd backend spring-boot:run     # backend, cổng 8080

@@ -55,8 +55,8 @@ Tài khoản `MANAGER` có thời hạn quản lý (`managerStartDate`, `manager
 | --- | --- | --- | --- | --- |
 | GET | `/api/health` | Không | | `{ "status": "OK" }` |
 | POST | `/api/auth/login` | Không | `{ "username", "password" }` | `{ "token", "username", "role" }` |
-| POST | `/api/auth/register` | Không | `{ "username", "password" }` | `201` |
-| GET | `/api/auth/me` | JWT | | `{ "username", "role", "personId", "fullName" }` |
+| POST | `/api/auth/register` | Không | `{ "username", "password" }` | `201` (`403` khi tắt đăng ký tự do) |
+| GET | `/api/auth/me` | JWT | | `{ "username", "role", "personId", "fullName", "root" }` |
 | GET | `/api/stats` | JWT | | `{ houseCount, roomCount, vacantRoomCount, activeContractCount, unpaidInvoiceCount, outstandingDebt }` |
 
 `login` trả `403` khi tài khoản `MANAGER` chưa đến hoặc đã qua thời hạn quản lý. `stats` của `USER` chưa liên kết hồ sơ trả toàn số `0`.
@@ -67,7 +67,7 @@ Tài khoản `MANAGER` có thời hạn quản lý (`managerStartDate`, `manager
 
 | Method | Path | Vai trò | Body / query | Trả về |
 | --- | --- | --- | --- | --- |
-| GET | `/api/persons` | ADMIN, MANAGER | `q`, `page=0`, `size=20` | Phân trang |
+| GET | `/api/persons` | ADMIN, MANAGER | `q`, `page=0`, `size=20` | Phân trang, loại người đã xoá mềm |
 | GET | `/api/persons/{id}` | ADMIN, MANAGER | | Person |
 | POST | `/api/persons` | ADMIN, MANAGER | `{ fullName*, idNumber, phone, address }` | `201` + Person |
 | PUT | `/api/persons/{id}` | ADMIN, MANAGER | như trên | Person |
@@ -174,9 +174,9 @@ Ràng buộc upload: tối đa 5 MB, chỉ `image/jpeg`, `image/png`, `image/web
 | --- | --- | --- | --- | --- |
 | GET | `/api/billing/fee-types` | Đọc | | Mảng `{ id, code, name, unit, active }` |
 | GET | `/api/billing/fee-rates` | Đọc | `feeTypeId` | Mảng `{ id, feeTypeId, feeCode, feeName, unit, period, price }` |
-| PUT | `/api/billing/fee-rates` | ADMIN | `{ feeTypeId*, period*, price* }` | Biểu giá (tạo hoặc cập nhật theo `feeTypeId` + `period`) |
+| PUT | `/api/billing/fee-rates` | ADMIN gốc | `{ feeTypeId*, period*, price* }` | Biểu giá (tạo hoặc cập nhật theo `feeTypeId` + `period`) |
 
-Biểu giá là cấu hình toàn hệ thống, vì vậy chỉ `ADMIN` được ghi.
+Biểu giá là cấu hình toàn hệ thống, vì vậy chỉ admin gốc (`root = true`) được ghi, `ADMIN` thường trả `403`. Đăng ký tài khoản công khai nhưng chỉ bật khi cấu hình `ALLOW_SELF_REGISTER=true`, mặc định tắt.
 
 ### Chỉ số điện nước
 

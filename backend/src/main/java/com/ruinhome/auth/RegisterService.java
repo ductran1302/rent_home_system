@@ -3,6 +3,7 @@ package com.ruinhome.auth;
 import com.ruinhome.user.Role;
 import com.ruinhome.user.UserAccount;
 import com.ruinhome.user.UserAccountRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -16,14 +17,22 @@ public class RegisterService {
 
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
+    private final boolean allowSelfRegister;
 
-    public RegisterService(UserAccountRepository userAccountRepository, PasswordEncoder passwordEncoder) {
+    public RegisterService(UserAccountRepository userAccountRepository,
+                           PasswordEncoder passwordEncoder,
+                           @Value("${ruinhome.auth.allow-self-register:false}") boolean allowSelfRegister) {
         this.userAccountRepository = userAccountRepository;
         this.passwordEncoder = passwordEncoder;
+        this.allowSelfRegister = allowSelfRegister;
     }
 
     @Transactional
     public void register(String rawUsername, String password) {
+        if (!allowSelfRegister) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Đăng ký tài khoản đang bị tắt, vui lòng liên hệ quản trị viên");
+        }
         String username = rawUsername == null ? "" : rawUsername.trim();
         if (!username.matches(USERNAME_REGEX)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

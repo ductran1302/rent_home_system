@@ -6,6 +6,7 @@ import {
   Row,
   Skeleton,
   Statistic,
+  theme,
   Typography,
 } from 'antd'
 import { useQuery } from '@tanstack/react-query'
@@ -24,6 +25,7 @@ interface Stats {
 
 export default function HomePage() {
   const { me } = useAuth()
+  const { token } = theme.useToken()
   const isUser = me?.role === 'USER'
 
   const statsQuery = useQuery({
@@ -63,7 +65,7 @@ export default function HomePage() {
 
   return (
     <div>
-      <Typography.Title level={4} style={{ marginTop: 0 }}>
+      <Typography.Title level={2} style={{ marginTop: 0 }}>
         Tổng quan
       </Typography.Title>
       <Row gutter={[16, 16]}>
@@ -71,24 +73,24 @@ export default function HomePage() {
           <>
             <Col xs={24} sm={12} lg={6}>
               <Card>
-                <Statistic title="Nhà" value={stats.houseCount} suffix="nhà" />
+                <Statistic title="Nhà" value={stats.houseCount} />
               </Card>
             </Col>
             <Col xs={24} sm={12} lg={6}>
               <Card>
-                <Statistic title="Phòng" value={stats.roomCount} suffix="phòng" />
+                <Statistic title="Phòng" value={stats.roomCount} />
               </Card>
             </Col>
             <Col xs={24} sm={12} lg={6}>
               <Card>
-                <Statistic title="Phòng trống" value={stats.vacantRoomCount} suffix="phòng" />
+                <Statistic title="Phòng trống" value={stats.vacantRoomCount} />
               </Card>
             </Col>
           </>
         )}
         <Col xs={24} sm={12} lg={6}>
           <Card>
-            <Statistic title="Hợp đồng đang hiệu lực" value={stats.activeContractCount} suffix="hợp đồng" />
+            <Statistic title="Hợp đồng đang hiệu lực" value={stats.activeContractCount} />
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
@@ -96,7 +98,6 @@ export default function HomePage() {
             <Statistic
               title="Hóa đơn chưa đóng đủ (tháng này)"
               value={stats.unpaidInvoiceCount}
-              suffix="hóa đơn"
             />
           </Card>
         </Col>
@@ -105,7 +106,7 @@ export default function HomePage() {
             <Statistic
               title="Còn phải thu (tháng này)"
               value={formatVnd(stats.outstandingDebt)}
-              valueStyle={{ color: stats.outstandingDebt > 0 ? '#cf1322' : undefined }}
+              valueStyle={{ color: stats.outstandingDebt > 0 ? token.colorError : undefined }}
             />
           </Card>
         </Col>

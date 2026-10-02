@@ -24,7 +24,7 @@ import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
 import ContractPhotoFrame from '../components/ContractPhotoFrame'
 import ContractAssetDrawer from '../components/ContractAssetDrawer'
-import { formatVnd } from '../utils/format'
+import { CODE_CELL, formatVnd, MONEY_CELL } from '../utils/format'
 
 interface ContractRow {
   id: number
@@ -180,7 +180,7 @@ const STATUS_META: Record<ContractRow['status'], { label: string; color?: string
 
 export default function ContractsPage() {
   const { me } = useAuth()
-  const { message } = AntApp.useApp()
+  const { message, modal } = AntApp.useApp()
   const canManage = me?.role === 'ADMIN' || me?.role === 'MANAGER'
 
   const [houseFilter, setHouseFilter] = useState<number | null>(null)
@@ -293,7 +293,7 @@ export default function ContractsPage() {
         note: values.note?.trim() || null,
       }),
     onSuccess: () => {
-      message.success('Đã ký hợp đồng')
+      message.success('Đã ký hợp đồng.')
       setCreateOpen(false)
       createForm.resetFields()
       setFormHouseId(null)
@@ -313,7 +313,7 @@ export default function ContractsPage() {
         note: values.note?.trim() || null,
       }),
     onSuccess: () => {
-      message.success('Đã cập nhật hợp đồng')
+      message.success('Đã cập nhật hợp đồng.')
       setCreateOpen(false)
       setEditing(null)
       editForm.resetFields()
@@ -325,7 +325,7 @@ export default function ContractsPage() {
   const terminateMutation = useMutation({
     mutationFn: async (id: number) => api.post(`/contracts/${id}/terminate`),
     onSuccess: () => {
-      message.success('Đã thu hồi hợp đồng')
+      message.success('Đã thu hồi hợp đồng.')
       contractsQuery.refetch()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -374,7 +374,9 @@ export default function ContractsPage() {
       width: 180,
       render: (_: unknown, row: ContractRow) => (
         <>
-          <EllipsisCell title={row.roomNumber} />
+          <EllipsisCell title={row.roomNumber}>
+            <span style={CODE_CELL}>{row.roomNumber}</span>
+          </EllipsisCell>
           <EllipsisCell title={row.houseName} secondary />
         </>
       ),
@@ -407,7 +409,11 @@ export default function ContractsPage() {
       key: 'monthlyRent',
       width: 150,
       align: 'right' as const,
-      render: (value: number) => <EllipsisCell title={formatVnd(value)} />,
+      render: (value: number) => (
+        <EllipsisCell title={formatVnd(value)}>
+          <span style={MONEY_CELL}>{formatVnd(value)}</span>
+        </EllipsisCell>
+      ),
     },
     {
       title: 'Kỳ thuê',
@@ -484,7 +490,7 @@ export default function ContractsPage() {
   return (
     <div>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
-        <Typography.Title level={4} style={{ margin: 0 }}>
+        <Typography.Title level={2} style={{ margin: 0 }}>
           Hợp đồng
         </Typography.Title>
         <Space wrap>
@@ -531,77 +537,119 @@ export default function ContractsPage() {
           style={{ margin: '48px 0' }}
           description={`Không tải được danh sách hợp đồng: ${getErrorMessage(contractsQuery.error)}`}
         >
-          <Button onClick={() => contractsQuery.refetch()}>Thử lại</Button>
+          <Button loading={contractsQuery.isFetching} onClick={() => contractsQuery.refetch()}>
+            Thử lại
+          </Button>
         </Empty>
       )}
 
-      <Table<ContractRow>
-        rowKey="id"
-        loading={contractsQuery.isLoading}
-        columns={columns}
-        dataSource={contractsQuery.data?.items}
-        locale={{
-          emptyText: <Empty description="Chưa có hợp đồng nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
-        }}
-        expandable={{
-          columnWidth: 56,
-          fixed: 'left',
-          columnTitle: (
-            <Tooltip title={allExpanded ? 'Thu gọn tất cả' : 'Mở tất cả khoản phí'}>
-              <Button
-                type="text"
-                size="small"
-                aria-label={allExpanded ? 'Thu gọn tất cả khoản phí' : 'Mở tất cả khoản phí'}
-                icon={allExpanded ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-                onClick={toggleExpandAll}
-                disabled={rowIds.length === 0}
-              />
-            </Tooltip>
-          ),
-          expandedRowKeys: expandedKeys,
-          onExpandedRowsChange: handleExpandedChange,
-          expandedRowRender: (row) => {
-            const entries = FEE_FIELDS.filter((field) => row.feePrices[field.key] != null)
-            if (entries.length === 0) {
+      {!contractsQuery.isError && (
+        <Table<ContractRow>
+          rowKey="id"
+          loading={contractsQuery.isLoading}
+          columns={columns}
+          dataSource={contractsQuery.data?.items}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  houseFilter != null || statusFilter != null
+                    ? 'Không tìm thấy hợp đồng khớp bộ lọc'
+                    : 'Chưa có hợp đồng nào, bấm Ký hợp đồng để tạo hợp đồng mới'
+                }
+              >
+                {(houseFilter != null || statusFilter != null) && (
+                  <Button
+                    onClick={() => {
+                      setHouseFilter(null)
+                      setStatusFilter(null)
+                      setPage(0)
+                    }}
+                  >
+                    Xoá bộ lọc
+                  </Button>
+                )}
+              </Empty>
+            ),
+          }}
+          expandable={{
+            columnWidth: 56,
+            fixed: 'left',
+            columnTitle: (
+              <Tooltip title={allExpanded ? 'Thu gọn tất cả' : 'Mở tất cả khoản phí'}>
+                <Button
+                  type="text"
+                  size="small"
+                  aria-label={allExpanded ? 'Thu gọn tất cả khoản phí' : 'Mở tất cả khoản phí'}
+                  icon={allExpanded ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                  onClick={toggleExpandAll}
+                  disabled={rowIds.length === 0}
+                />
+              </Tooltip>
+            ),
+            expandedRowKeys: expandedKeys,
+            onExpandedRowsChange: handleExpandedChange,
+            expandedRowRender: (row) => {
+              const entries = FEE_FIELDS.filter((field) => row.feePrices[field.key] != null)
+              if (entries.length === 0) {
+                return (
+                  <Typography.Text type="secondary">
+                    Hợp đồng không đặt giá riêng, dùng giá chung theo kỳ hóa đơn.
+                  </Typography.Text>
+                )
+              }
               return (
-                <Typography.Text type="secondary">
-                  Hợp đồng không đặt giá riêng, dùng giá chung theo kỳ hóa đơn.
-                </Typography.Text>
+                <Space wrap>
+                  {entries.map((field) => (
+                    <Tag key={field.key}>
+                      {field.label}:{' '}
+                      <span style={MONEY_CELL}>{formatVnd(row.feePrices[field.key])}</span>/
+                      {field.unit.replace('đồng/', '')}
+                    </Tag>
+                  ))}
+                </Space>
               )
-            }
-            return (
-              <Space wrap>
-                {entries.map((field) => (
-                  <Tag key={field.key}>
-                    {field.label}: {formatVnd(row.feePrices[field.key])}/{field.unit.replace('đồng/', '')}
-                  </Tag>
-                ))}
-              </Space>
-            )
-          },
-        }}
-        pagination={{
-          current: page + 1,
-          pageSize: 20,
-          total: contractsQuery.data?.total ?? 0,
-          showTotal: (total) => `Tổng ${total} hợp đồng`,
-          onChange: (nextPage) => setPage(nextPage - 1),
-        }}
-      />
+            },
+          }}
+          pagination={{
+            current: page + 1,
+            pageSize: 20,
+            total: contractsQuery.data?.total ?? 0,
+            showTotal: (total) => `Tổng ${total} hợp đồng`,
+            onChange: (nextPage) => setPage(nextPage - 1),
+          }}
+        />
+      )}
 
       <Modal
         title={editing ? 'Sửa hợp đồng' : 'Ký hợp đồng'}
         open={createOpen}
         onCancel={() => {
-          setCreateOpen(false)
-          setEditing(null)
+          const close = () => {
+            setCreateOpen(false)
+            setEditing(null)
+          }
+          const activeForm = isCreateMode ? createForm : editForm
+          if (activeForm.isFieldsTouched()) {
+            modal.confirm({
+              title: 'Đóng biểu mẫu?',
+              content: 'Các thay đổi chưa lưu sẽ bị mất.',
+              okText: 'Đóng',
+              cancelText: 'Tiếp tục sửa',
+              onOk: close,
+            })
+          } else {
+            close()
+          }
         }}
         onOk={() => (editing ? editForm.submit() : createForm.submit())}
         confirmLoading={createMutation.isPending || updateMutation.isPending}
         okText="Lưu"
         cancelText="Huỷ"
         destroyOnHidden
-        width={560}
+        width="min(560px, calc(100vw - 32px))"
+        styles={{ body: { maxHeight: '68vh', overflowY: 'auto' } }}
       >
         {isCreateMode ? (
           <Form

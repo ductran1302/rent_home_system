@@ -29,6 +29,7 @@ if "%TARGET%"=="frontend" goto :run_frontend
 exit /b 1
 
 :run_backend
+if exist "%~dp0.env" for /f "usebackq eol=# tokens=1,* delims==" %%A in ("%~dp0.env") do set "%%A=%%B"
 pushd "%~dp0backend"
 if "%ARGS%"=="" goto :backend_default
 call mvnw.cmd%ARGS%

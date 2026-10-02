@@ -3,7 +3,6 @@ import {
   Button,
   DatePicker,
   Empty,
-  Popconfirm,
   Select,
   Space,
   Table,
@@ -18,7 +17,7 @@ import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
 import FeeRateModal from '../components/billing/FeeRateModal'
 import InvoiceDrawer from '../components/billing/InvoiceDrawer'
-import { formatVnd } from '../utils/format'
+import { CODE_CELL, formatPeriod, formatVnd, MONEY_CELL } from '../utils/format'
 
 interface InvoiceRow {
   id: number
@@ -51,7 +50,6 @@ export default function BillingPage() {
   const { me } = useAuth()
   const { message, modal } = AntApp.useApp()
   const canManage = me?.role === 'ADMIN' || me?.role === 'MANAGER'
-  const isAdmin = me?.role === 'ADMIN'
 
   const [period, setPeriod] = useState<string>(dayjs().format('YYYY-MM'))
   const [houseFilter, setHouseFilter] = useState<number | null>(null)
@@ -98,7 +96,8 @@ export default function BillingPage() {
         `Đã tạo ${result.created} hóa đơn` +
           (result.skipped.length > 0
             ? `, bỏ qua ${result.skipped.length} phòng${skippedText ? ` (${skippedText})` : ''}`
-            : ''),
+            : '') +
+          '.',
         6,
       )
       invoicesQuery.refetch()
@@ -106,18 +105,9 @@ export default function BillingPage() {
     onError: (error) => message.error(getErrorMessage(error)),
   })
 
-  const publishMutation = useMutation({
-    mutationFn: async (id: number) => api.post(`/billing/invoices/${id}/publish`),
-    onSuccess: () => {
-      message.success('Đã phát hành hóa đơn')
-      invoicesQuery.refetch()
-    },
-    onError: (error) => message.error(getErrorMessage(error)),
-  })
-
   const openGenerate = () => {
     modal.confirm({
-      title: `Tạo hóa đơn kỳ ${period}?`,
+      title: `Tạo hóa đơn kỳ ${formatPeriod(period)}?`,
       content:
         'Mỗi phòng có hợp đồng hoạt động trong kỳ sẽ tạo 1 hóa đơn nháp. Hóa đơn đã tồn tại sẽ được bỏ qua.',
       okText: 'Tạo',
@@ -133,7 +123,7 @@ export default function BillingPage() {
       width: 190,
       render: (_: unknown, row: InvoiceRow) => (
         <span>
-          {row.roomNumber}
+          <span style={CODE_CELL}>{row.roomNumber}</span>
           <Typography.Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
             {row.houseName}
           </Typography.Text>
@@ -146,7 +136,7 @@ export default function BillingPage() {
       key: 'totalAmount',
       width: 140,
       align: 'right' as const,
-      render: (value: number) => formatVnd(value),
+      render: (value: number) => <span style={MONEY_CELL}>{formatVnd(value)}</span>,
     },
     {
       title: 'Đã đóng',
@@ -154,14 +144,16 @@ export default function BillingPage() {
       key: 'paidAmount',
       width: 140,
       align: 'right' as const,
-      render: (value: number) => formatVnd(value),
+      render: (value: number) => <span style={MONEY_CELL}>{formatVnd(value)}</span>,
     },
     {
       title: 'Còn lại',
       key: 'remaining',
       width: 140,
       align: 'right' as const,
-      render: (_: unknown, row: InvoiceRow) => formatVnd(row.totalAmount - row.paidAmount),
+      render: (_: unknown, row: InvoiceRow) => (
+        <span style={MONEY_CELL}>{formatVnd(row.totalAmount - row.paidAmount)}</span>
+      ),
     },
     {
       title: 'Trạng thái',
@@ -175,26 +167,11 @@ export default function BillingPage() {
     {
       title: 'Thao tác',
       key: 'actions',
-      width: 240,
+      width: 110,
       render: (_: unknown, row: InvoiceRow) => (
-        <Space>
-          <Button size="small" onClick={() => setSelectedInvoiceId(row.id)}>
-            Chi tiết
-          </Button>
-          {canManage && row.status === 'DRAFT' && (
-            <Popconfirm
-              title="Phát hành hóa đơn này?"
-              description="Sau khi phát hành, khách có thể theo dõi và đóng tiền."
-              okText="Phát hành"
-              cancelText="Huỷ"
-              onConfirm={() => publishMutation.mutate(row.id)}
-            >
-              <Button size="small" type="primary" loading={publishMutation.isPending}>
-                Phát hành
-              </Button>
-            </Popconfirm>
-          )}
-        </Space>
+        <Button size="small" onClick={() => setSelectedInvoiceId(row.id)}>
+          Chi tiết
+        </Button>
       ),
     },
   ]
@@ -202,7 +179,7 @@ export default function BillingPage() {
   return (
     <div>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
-        <Typography.Title level={4} style={{ margin: 0 }}>
+        <Typography.Title level={2} style={{ margin: 0 }}>
           Hóa đơn
         </Typography.Title>
         <Space wrap>
@@ -250,7 +227,7 @@ export default function BillingPage() {
           />
           {canManage && (
             <>
-              {isAdmin && <Button onClick={() => setFeeRateOpen(true)}>Cấu hình giá</Button>}
+              {me?.root && <Button onClick={() => setFeeRateOpen(true)}>Cấu hình giá</Button>}
               <Tooltip title="Tạo hóa đơn theo tháng đang chọn">
                 <Button type="primary" loading={generateMutation.isPending} onClick={openGenerate}>
                   Tạo hóa đơn
@@ -266,31 +243,51 @@ export default function BillingPage() {
           style={{ margin: '48px 0' }}
           description={`Không tải được danh sách hóa đơn: ${getErrorMessage(invoicesQuery.error)}`}
         >
-          <Button onClick={() => invoicesQuery.refetch()}>Thử lại</Button>
+          <Button loading={invoicesQuery.isFetching} onClick={() => invoicesQuery.refetch()}>
+            Thử lại
+          </Button>
         </Empty>
       )}
 
-      <Table<InvoiceRow>
-        rowKey="id"
-        loading={invoicesQuery.isLoading}
-        columns={columns}
-        dataSource={invoicesQuery.data?.items}
-        locale={{
-          emptyText: (
-            <Empty
-              description={`Chưa có hóa đơn kỳ ${period.replace('-', '/')}`}
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
-          ),
-        }}
-        pagination={{
-          current: page + 1,
-          pageSize: 20,
-          total: invoicesQuery.data?.total ?? 0,
-          showTotal: (total) => `Tổng ${total} hóa đơn`,
-          onChange: (nextPage) => setPage(nextPage - 1),
-        }}
-      />
+      {!invoicesQuery.isError && (
+        <Table<InvoiceRow>
+          rowKey="id"
+          loading={invoicesQuery.isLoading}
+          columns={columns}
+          dataSource={invoicesQuery.data?.items}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  houseFilter != null || statusFilter != null
+                    ? 'Không tìm thấy hóa đơn khớp bộ lọc'
+                    : `Chưa có hóa đơn kỳ ${formatPeriod(period)}, bấm Tạo hóa đơn để tạo cho các phòng`
+                }
+              >
+                {(houseFilter != null || statusFilter != null) && (
+                  <Button
+                    onClick={() => {
+                      setHouseFilter(null)
+                      setStatusFilter(null)
+                      setPage(0)
+                    }}
+                  >
+                    Xoá bộ lọc
+                  </Button>
+                )}
+              </Empty>
+            ),
+          }}
+          pagination={{
+            current: page + 1,
+            pageSize: 20,
+            total: invoicesQuery.data?.total ?? 0,
+            showTotal: (total) => `Tổng ${total} hóa đơn`,
+            onChange: (nextPage) => setPage(nextPage - 1),
+          }}
+        />
+      )}
 
       <InvoiceDrawer
         invoiceId={selectedInvoiceId}

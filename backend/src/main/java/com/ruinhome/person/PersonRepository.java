@@ -16,7 +16,7 @@ public interface PersonRepository extends JpaRepository<Person, Long> {
 
     boolean existsByIdNumberAndActiveTrue(String idNumber);
 
-    @Query("select p from Person p where (:areaScope is null or p.areaAdmin = :areaScope)")
+    @Query("select p from Person p where p.active = true and (:areaScope is null or p.areaAdmin = :areaScope)")
     Page<Person> findAllInArea(@Param("areaScope") String areaScope, Pageable pageable);
 
     @Query("""

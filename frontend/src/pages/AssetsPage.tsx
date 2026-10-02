@@ -20,7 +20,7 @@ import dayjs, { type Dayjs } from 'dayjs'
 import { useEffect, useState } from 'react'
 import { api, getErrorMessage } from '../api/client'
 import PhotoUpload, { PhotoThumb } from '../components/PhotoUpload'
-import { formatDate, formatVnd } from '../utils/format'
+import { CODE_CELL, formatDate, formatVnd, MONEY_CELL } from '../utils/format'
 import {
   CATEGORY_LABELS,
   CONDITION_META,
@@ -116,9 +116,6 @@ interface RepairFormValues {
   doneAt?: Dayjs
   note?: string
 }
-
-const MONEY_CELL = { fontVariantNumeric: 'tabular-nums' } as const
-const CODE_CELL = { fontFamily: 'monospace' } as const
 
 export default function AssetsPage() {
   const { message } = AntApp.useApp()
@@ -251,7 +248,7 @@ export default function AssetsPage() {
       return api.post<AssetRow>('/assets', payload)
     },
     onSuccess: () => {
-      message.success(editingAsset ? 'Đã cập nhật tài sản' : 'Đã thêm tài sản')
+      message.success(editingAsset ? 'Đã cập nhật tài sản.' : 'Đã thêm tài sản.')
       setAssetModalOpen(false)
       setEditingAsset(null)
       assetForm.resetFields()
@@ -263,7 +260,7 @@ export default function AssetsPage() {
   const deleteAssetMutation = useMutation({
     mutationFn: async (id: number) => api.delete(`/assets/${id}`),
     onSuccess: () => {
-      message.success('Đã xoá tài sản')
+      message.success('Đã xoá tài sản.')
       assetsQuery.refetch()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -288,7 +285,7 @@ export default function AssetsPage() {
       return api.post<RepairRow>(`/assets/${values.assetId}/repairs`, payload)
     },
     onSuccess: () => {
-      message.success(editingRepair ? 'Đã cập nhật lần sửa' : 'Đã thêm lần sửa')
+      message.success(editingRepair ? 'Đã cập nhật lần sửa.' : 'Đã thêm lần sửa.')
       setRepairModalOpen(false)
       setEditingRepair(null)
       repairForm.resetFields()
@@ -302,7 +299,7 @@ export default function AssetsPage() {
     mutationFn: async (row: RepairRow) =>
       api.delete(`/assets/${row.assetId}/repairs/${row.id}`),
     onSuccess: () => {
-      message.success('Đã xoá lần sửa')
+      message.success('Đã xoá lần sửa.')
       repairsQuery.refetch()
       assetsQuery.refetch()
     },
@@ -316,7 +313,7 @@ export default function AssetsPage() {
       return api.post(`/assets/${assetId}/photos`, body)
     },
     onSuccess: () => {
-      message.success('Đã thêm ảnh tài sản')
+      message.success('Đã thêm ảnh tài sản.')
       assetPhotosQuery.refetch()
       assetsQuery.refetch()
     },
@@ -327,7 +324,7 @@ export default function AssetsPage() {
     mutationFn: async ({ assetId, photoId }: { assetId: number; photoId: number }) =>
       api.delete(`/assets/${assetId}/photos/${photoId}`),
     onSuccess: () => {
-      message.success('Đã xoá ảnh')
+      message.success('Đã xoá ảnh.')
       assetPhotosQuery.refetch()
       assetsQuery.refetch()
     },
@@ -353,7 +350,7 @@ export default function AssetsPage() {
       })
     },
     onSuccess: () => {
-      message.success('Đã thêm ảnh lần sửa')
+      message.success('Đã thêm ảnh lần sửa.')
       repairPhotosQuery.refetch()
       repairsQuery.refetch()
       assetsQuery.refetch()
@@ -372,7 +369,7 @@ export default function AssetsPage() {
       photoId: number
     }) => api.delete(`/assets/${assetId}/repairs/${repairId}/photos/${photoId}`),
     onSuccess: () => {
-      message.success('Đã xoá ảnh')
+      message.success('Đã xoá ảnh.')
       repairPhotosQuery.refetch()
       repairsQuery.refetch()
     },
@@ -646,6 +643,34 @@ export default function AssetsPage() {
     },
   ]
 
+  const assetFiltered =
+    houseFilter != null ||
+    roomFilter != null ||
+    conditionFilter != null ||
+    categoryFilter != null ||
+    query !== ''
+  const repairFiltered =
+    houseFilter != null || roomFilter != null || statusFilter != null || query !== ''
+
+  const clearAssetFilters = () => {
+    setHouseFilter(null)
+    setRoomFilter(null)
+    setConditionFilter(null)
+    setCategoryFilter(null)
+    setSearch('')
+    setQuery('')
+    setPage(0)
+  }
+
+  const clearRepairFilters = () => {
+    setHouseFilter(null)
+    setRoomFilter(null)
+    setStatusFilter(null)
+    setSearch('')
+    setQuery('')
+    setPage(0)
+  }
+
   const assetTable = assetsQuery.isError ? (
     <Empty
       style={{ margin: '48px 0' }}
@@ -664,8 +689,14 @@ export default function AssetsPage() {
         emptyText: (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Chưa có tài sản nào, bấm Thêm tài sản để nhập tài sản đầu tiên"
-          />
+            description={
+              assetFiltered
+                ? 'Không tìm thấy tài sản khớp bộ lọc'
+                : 'Chưa có tài sản nào, bấm Thêm tài sản để nhập tài sản đầu tiên'
+            }
+          >
+            {assetFiltered && <Button onClick={clearAssetFilters}>Xoá bộ lọc</Button>}
+          </Empty>
         ),
       }}
       pagination={{
@@ -696,8 +727,14 @@ export default function AssetsPage() {
         emptyText: (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="Chưa có lần sửa nào, chọn Thêm lần sửa để ghi nhận"
-          />
+            description={
+              repairFiltered
+                ? 'Không tìm thấy lần sửa khớp bộ lọc'
+                : 'Chưa có lần sửa nào, chọn Thêm lần sửa để ghi nhận'
+            }
+          >
+            {repairFiltered && <Button onClick={clearRepairFilters}>Xoá bộ lọc</Button>}
+          </Empty>
         ),
       }}
       pagination={{
@@ -713,7 +750,7 @@ export default function AssetsPage() {
   return (
     <div>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
-        <Typography.Title level={4} style={{ margin: 0 }}>
+        <Typography.Title level={2} style={{ margin: 0 }}>
           Tài sản
         </Typography.Title>
         <Space wrap>

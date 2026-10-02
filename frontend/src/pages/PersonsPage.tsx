@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
-import { formatDateTime } from '../utils/format'
+import { CODE_CELL, formatDateTime } from '../utils/format'
 
 const PAGE_SIZE = 20
 
@@ -74,7 +74,7 @@ export default function PersonsPage() {
       return api.post<PersonRow>('/persons', payload)
     },
     onSuccess: () => {
-      message.success(editing ? 'Đã cập nhật người' : 'Đã thêm người')
+      message.success(editing ? 'Đã cập nhật người.' : 'Đã thêm người.')
       setModalOpen(false)
       setEditing(null)
       form.resetFields()
@@ -86,7 +86,7 @@ export default function PersonsPage() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => api.delete(`/persons/${id}`),
     onSuccess: () => {
-      message.success('Đã xoá người')
+      message.success('Đã xoá người.')
       listQuery.refetch()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -121,7 +121,8 @@ export default function PersonsPage() {
       dataIndex: 'idNumber',
       key: 'idNumber',
       width: 140,
-      render: (value: string | null) => value || '-',
+      render: (value: string | null) =>
+        value ? <span style={CODE_CELL}>{value}</span> : '-',
     },
     {
       title: 'Số điện thoại',
@@ -198,7 +199,7 @@ export default function PersonsPage() {
   return (
     <div>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
-        <Typography.Title level={4} style={{ margin: 0 }}>
+        <Typography.Title level={2} style={{ margin: 0 }}>
           Quản lý người
         </Typography.Title>
         <Space>
@@ -223,27 +224,51 @@ export default function PersonsPage() {
           style={{ margin: '48px 0' }}
           description={`Không tải được danh sách: ${getErrorMessage(listQuery.error)}`}
         >
-          <Button onClick={() => listQuery.refetch()}>Thử lại</Button>
+          <Button loading={listQuery.isFetching} onClick={() => listQuery.refetch()}>
+            Thử lại
+          </Button>
         </Empty>
       )}
 
-      <Table<PersonRow>
-        rowKey="id"
-        loading={listQuery.isLoading}
-        columns={columns}
-        dataSource={listQuery.data?.items}
-        scroll={{ x: 1250 }}
-        locale={{
-          emptyText: <Empty description="Chưa có người nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
-        }}
-        pagination={{
-          current: page + 1,
-          pageSize: PAGE_SIZE,
-          total: listQuery.data?.total ?? 0,
-          showTotal: (total) => `Tổng ${total} người`,
-          onChange: (nextPage) => setPage(nextPage - 1),
-        }}
-      />
+      {!listQuery.isError && (
+        <Table<PersonRow>
+          rowKey="id"
+          loading={listQuery.isLoading}
+          columns={columns}
+          dataSource={listQuery.data?.items}
+          scroll={{ x: 1250 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  query
+                    ? 'Không tìm thấy người khớp với tìm kiếm'
+                    : 'Chưa có người nào, bấm Thêm người để thêm người đầu tiên'
+                }
+              >
+                {query && (
+                  <Button
+                    onClick={() => {
+                      setSearch('')
+                      setQuery('')
+                    }}
+                  >
+                    Xoá tìm kiếm
+                  </Button>
+                )}
+              </Empty>
+            ),
+          }}
+          pagination={{
+            current: page + 1,
+            pageSize: PAGE_SIZE,
+            total: listQuery.data?.total ?? 0,
+            showTotal: (total) => `Tổng ${total} người`,
+            onChange: (nextPage) => setPage(nextPage - 1),
+          }}
+        />
+      )}
 
       <Modal
         title={editing ? 'Sửa người' : 'Thêm người'}
@@ -276,14 +301,30 @@ export default function PersonsPage() {
           <Form.Item
             label="Số CCCD"
             name="idNumber"
-            rules={[{ max: 20, message: 'Số CCCD tối đa 20 ký tự' }]}
+            rules={[
+              { max: 20, message: 'Số CCCD tối đa 20 ký tự' },
+              {
+                validator: (_, value: string) =>
+                  !value || /^\d+$/.test(value)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('Số CCCD chỉ gồm chữ số')),
+              },
+            ]}
           >
             <Input placeholder="12 ký tự số" />
           </Form.Item>
           <Form.Item
             label="Số điện thoại"
             name="phone"
-            rules={[{ max: 20, message: 'Số điện thoại tối đa 20 ký tự' }]}
+            rules={[
+              { max: 20, message: 'Số điện thoại tối đa 20 ký tự' },
+              {
+                validator: (_, value: string) =>
+                  !value || /^\d+$/.test(value)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('Số điện thoại chỉ gồm chữ số')),
+              },
+            ]}
           >
             <Input placeholder="0901234567" />
           </Form.Item>

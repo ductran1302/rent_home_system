@@ -16,7 +16,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import dayjs, { type Dayjs } from 'dayjs'
 import { useState } from 'react'
 import { api, getErrorMessage } from '../api/client'
-import { formatDate, formatVnd } from '../utils/format'
+import { CODE_CELL, formatDate, formatVnd, MONEY_CELL } from '../utils/format'
 import {
   CATEGORY_LABELS,
   CONDITION_META,
@@ -57,9 +57,6 @@ interface ReturnFormValues {
   returnedAt?: Dayjs
 }
 
-const CODE_CELL = { fontFamily: 'monospace' } as const
-const MONEY_CELL = { fontVariantNumeric: 'tabular-nums' } as const
-
 export default function ContractAssetDrawer({
   contractId,
   canManage,
@@ -91,7 +88,7 @@ export default function ContractAssetDrawer({
       })
     },
     onSuccess: () => {
-      message.success('Đã thu hồi tài sản')
+      message.success('Đã thu hồi tài sản.')
       setReturning(null)
       form.resetFields()
       listQuery.refetch()
@@ -184,7 +181,7 @@ export default function ContractAssetDrawer({
       title="Tài sản bàn giao"
       open={contractId != null}
       onClose={onClose}
-      width={880}
+      width="min(880px, calc(100vw - 48px))"
       destroyOnClose
     >
       {listQuery.isError && (
@@ -207,23 +204,25 @@ export default function ContractAssetDrawer({
         </Descriptions>
       )}
 
-      <Table<AssetItem>
-        rowKey="id"
-        size="small"
-        loading={listQuery.isLoading}
-        columns={columns}
-        dataSource={listQuery.data?.items}
-        scroll={{ x: 900 }}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Hợp đồng chưa bàn giao tài sản nào, chọn Sửa hợp đồng để chọn tài sản"
-            />
-          ),
-        }}
-        pagination={false}
-      />
+      {!listQuery.isError && (
+        <Table<AssetItem>
+          rowKey="id"
+          size="small"
+          loading={listQuery.isLoading}
+          columns={columns}
+          dataSource={listQuery.data?.items}
+          scroll={{ x: 900 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="Hợp đồng chưa bàn giao tài sản nào, chọn Sửa hợp đồng để chọn tài sản"
+              />
+            ),
+          }}
+          pagination={false}
+        />
+      )}
 
       <Modal
         title="Thu hồi tài sản"

@@ -1,5 +1,6 @@
 package com.ruinhome.billing;
 
+import com.ruinhome.auth.CurrentUserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,10 +13,14 @@ public class FeeConfigService {
 
     private final FeeTypeRepository feeTypeRepository;
     private final FeeRateRepository feeRateRepository;
+    private final CurrentUserService currentUserService;
 
-    public FeeConfigService(FeeTypeRepository feeTypeRepository, FeeRateRepository feeRateRepository) {
+    public FeeConfigService(FeeTypeRepository feeTypeRepository,
+                            FeeRateRepository feeRateRepository,
+                            CurrentUserService currentUserService) {
         this.feeTypeRepository = feeTypeRepository;
         this.feeRateRepository = feeRateRepository;
+        this.currentUserService = currentUserService;
     }
 
     @Transactional(readOnly = true)
@@ -35,6 +40,10 @@ public class FeeConfigService {
 
     @Transactional
     public BillingDtos.FeeRateResponse upsertFeeRate(BillingDtos.FeeRateUpsertRequest request) {
+        if (!currentUserService.isRoot()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Chỉ quản trị viên gốc mới được cấu hình giá phí");
+        }
         BillingSupport.validatePeriod(request.period());
         FeeType feeType = feeTypeRepository.findById(request.feeTypeId())
                 .filter(FeeType::isActive)

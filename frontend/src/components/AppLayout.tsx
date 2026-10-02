@@ -9,10 +9,12 @@ import {
   ToolOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { Avatar, Dropdown, Layout, Menu, Space, Typography } from 'antd'
-import { Suspense } from 'react'
+import { Avatar, Dropdown, Layout, Menu, Space, theme, Typography } from 'antd'
+import { Suspense, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/context'
+import logoHouse from '../assets/logo-house.svg'
+import logoMark from '../assets/logo-mark.svg'
 import PageSkeleton from './PageSkeleton'
 
 const { Sider, Header, Content } = Layout
@@ -25,10 +27,12 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function AppLayout() {
   const { me, logout } = useAuth()
+  const { token } = theme.useToken()
   const navigate = useNavigate()
   const location = useLocation()
 
   const selectedKey = '/' + (location.pathname.split('/')[1] ?? '')
+  const [siderCollapsed, setSiderCollapsed] = useState(false)
   const role = me?.role
   const menuItems = [
     { key: '/', icon: <ApartmentOutlined />, label: 'Tổng quan' },
@@ -65,19 +69,30 @@ export default function AppLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider breakpoint="lg" collapsedWidth={64} theme="dark">
+      <Sider
+        breakpoint="lg"
+        collapsedWidth={64}
+        theme="dark"
+        onBreakpoint={setSiderCollapsed}
+      >
         <div
           style={{
             height: 56,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
-            fontWeight: 600,
-            fontSize: 18,
           }}
         >
-          RuinHome
+          <img
+            src={siderCollapsed ? logoMark : logoHouse}
+            alt="Logo HOUSE"
+            style={{
+              height: 36,
+              maxHeight: 40,
+              maxWidth: 168,
+              objectFit: 'contain',
+            }}
+          />
         </div>
         <Menu
           theme="dark"
@@ -90,19 +105,25 @@ export default function AppLayout() {
       <Layout>
         <Header
           style={{
-            background: '#fff',
+            background: token.colorBgContainer,
             padding: '0 24px',
             display: 'flex',
             justifyContent: 'flex-end',
             alignItems: 'center',
-            borderBottom: '1px solid #f0f0f0',
+            borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
-          <Dropdown menu={userMenu} placement="bottomRight">
-            <Space style={{ cursor: 'pointer' }}>
-              <Avatar size="small" icon={<UserOutlined />} />
-              <Typography.Text>{me?.fullName || me?.username}</Typography.Text>
-            </Space>
+          <Dropdown menu={userMenu} placement="bottomRight" trigger={['click']}>
+            <button
+              type="button"
+              aria-label="Tài khoản"
+              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+            >
+              <Space>
+                <Avatar size="small" icon={<UserOutlined />} />
+                <Typography.Text>{me?.fullName || me?.username}</Typography.Text>
+              </Space>
+            </button>
           </Dropdown>
         </Header>
         <Content style={{ margin: 24 }}>

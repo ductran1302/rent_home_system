@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: ruinhome
       POSTGRES_PASSWORD: ruinhome
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -25,9 +25,11 @@ services:
       DB_USERNAME: ruinhome
       DB_PASSWORD: ruinhome
       UPLOAD_DIR: /app/uploads
-      JWT_SECRET: ${JWT_SECRET:-ruinhome-dev-secret-change-me-in-production-0123456789}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required - copy .env.example to .env}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required - copy .env.example to .env}
+      RUINHOME_AUTH_ALLOW_SELF_REGISTER: ${ALLOW_SELF_REGISTER:-false}
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     volumes:
       - uploads:/app/uploads
 

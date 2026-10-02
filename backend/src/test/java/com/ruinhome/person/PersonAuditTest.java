@@ -93,4 +93,19 @@ class PersonAuditTest {
         assertThat(person.isActive()).isFalse();
         assertThat(person.getUpdatedBy()).isEqualTo("admin");
     }
+
+    @Test
+    void listExcludesSoftDeletedPerson() {
+        var created = personService.create(new PersonDtos.PersonRequest(
+                "Nguyen Van Bi Xoa", null, null, null));
+        personService.softDelete(created.id());
+
+        var withoutQuery = personService.list(null, 0, 200).getContent().stream()
+                .map(PersonDtos.PersonResponse::fullName)
+                .toList();
+        assertThat(withoutQuery).doesNotContain("Nguyen Van Bi Xoa");
+
+        var withQuery = personService.list("Bi Xoa", 0, 200).getContent();
+        assertThat(withQuery).isEmpty();
+    }
 }

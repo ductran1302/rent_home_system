@@ -102,7 +102,7 @@ export default function AccountsPage() {
       return api.post<UserRow>('/users', payload)
     },
     onSuccess: () => {
-      message.success(editing ? 'Đã cập nhật tài khoản' : 'Đã tạo tài khoản')
+      message.success(editing ? 'Đã cập nhật tài khoản.' : 'Đã tạo tài khoản.')
       setModalOpen(false)
       setEditing(null)
       form.resetFields()
@@ -121,7 +121,7 @@ export default function AccountsPage() {
         enabled,
       }),
     onSuccess: () => {
-      message.success('Đã cập nhật trạng thái tài khoản')
+      message.success('Đã cập nhật trạng thái tài khoản.')
       listQuery.refetch()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -232,7 +232,7 @@ export default function AccountsPage() {
   return (
     <div>
       <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 16 }} wrap>
-        <Typography.Title level={4} style={{ margin: 0 }}>
+        <Typography.Title level={2} style={{ margin: 0 }}>
           Tài khoản
         </Typography.Title>
         <Button type="primary" onClick={openCreate}>
@@ -245,26 +245,30 @@ export default function AccountsPage() {
           style={{ margin: '48px 0' }}
           description={`Không tải được danh sách tài khoản: ${getErrorMessage(listQuery.error)}`}
         >
-          <Button onClick={() => listQuery.refetch()}>Thử lại</Button>
+          <Button loading={listQuery.isFetching} onClick={() => listQuery.refetch()}>
+            Thử lại
+          </Button>
         </Empty>
       )}
 
-      <Table<UserRow>
-        rowKey="id"
-        loading={listQuery.isLoading}
-        columns={columns}
-        dataSource={listQuery.data}
-        pagination={false}
-        scroll={{ x: 1100 }}
-        locale={{
-          emptyText: (
-            <Empty
-              description="Chưa có tài khoản nào, bấm Thêm tài khoản để tạo"
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-            />
-          ),
-        }}
-      />
+      {!listQuery.isError && (
+        <Table<UserRow>
+          rowKey="id"
+          loading={listQuery.isLoading}
+          columns={columns}
+          dataSource={listQuery.data}
+          pagination={false}
+          scroll={{ x: 1100 }}
+          locale={{
+            emptyText: (
+              <Empty
+                description="Chưa có tài khoản nào, bấm Thêm tài khoản để tạo"
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+              />
+            ),
+          }}
+        />
+      )}
 
       <Modal
         title={editing ? 'Sửa tài khoản' : 'Thêm tài khoản'}

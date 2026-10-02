@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { api, getErrorMessage } from '../../api/client'
+import { formatPeriod } from '../../utils/format'
 
 interface HouseOption {
   id: number
@@ -149,7 +150,7 @@ export default function MeterModal({
         ...prev,
         [key]: { meterId: data.id, value: data.reading, dirty: false },
       }))
-      message.success('Đã lưu chỉ số')
+      message.success('Đã lưu chỉ số.')
       queryClient.invalidateQueries({ queryKey: ['meters', period] })
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -205,11 +206,11 @@ export default function MeterModal({
 
   return (
     <Modal
-      title={`Nhập chỉ số điện nước kỳ ${period}`}
+      title={`Nhập chỉ số điện nước kỳ ${formatPeriod(period)}`}
       open={open}
       onCancel={onClose}
       footer={null}
-      width={720}
+      width="min(720px, calc(100vw - 32px))"
     >
       <Space style={{ marginBottom: 16, width: '100%' }} wrap>
         <Select

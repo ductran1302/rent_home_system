@@ -10,6 +10,7 @@ import {
   Modal,
   Popconfirm,
   Select,
+  Skeleton,
   Space,
   Table,
   Tag,
@@ -18,7 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api, getErrorMessage } from '../../api/client'
-import { formatVnd } from '../../utils/format'
+import { formatNumber, formatPeriod, formatVnd, MONEY_CELL } from '../../utils/format'
 
 export interface InvoiceLine {
   id: number
@@ -134,7 +135,7 @@ export default function InvoiceDrawer({
   const publishMutation = useMutation({
     mutationFn: async () => api.post(`/billing/invoices/${invoiceId}/publish`),
     onSuccess: () => {
-      message.success('Đã phát hành hóa đơn')
+      message.success('Đã phát hành hóa đơn.')
       afterChange()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -144,7 +145,7 @@ export default function InvoiceDrawer({
     mutationFn: async (amount: number) =>
       api.post(`/billing/invoices/${invoiceId}/payments`, { amount }),
     onSuccess: () => {
-      message.success('Đã ghi nhận đóng tiền')
+      message.success('Đã ghi nhận đóng tiền.')
       setPaymentOpen(false)
       paymentForm.resetFields()
       afterChange()
@@ -163,7 +164,7 @@ export default function InvoiceDrawer({
       return api.post(`/billing/invoices/${invoiceId}/lines`, values)
     },
     onSuccess: () => {
-      message.success(editingLine ? 'Đã cập nhật dòng tiền' : 'Đã thêm dòng tiền')
+      message.success(editingLine ? 'Đã cập nhật dòng tiền.' : 'Đã thêm dòng tiền.')
       setLineModalOpen(false)
       setEditingLine(null)
       lineForm.resetFields()
@@ -176,7 +177,7 @@ export default function InvoiceDrawer({
     mutationFn: async (lineId: number) =>
       api.delete(`/billing/invoices/${invoiceId}/lines/${lineId}`),
     onSuccess: () => {
-      message.success('Đã xoá dòng tiền')
+      message.success('Đã xoá dòng tiền.')
       afterChange()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -199,7 +200,7 @@ export default function InvoiceDrawer({
         note: values.note?.trim() ? values.note.trim() : null,
       }),
     onSuccess: () => {
-      message.success('Đã cập nhật giá phòng')
+      message.success('Đã cập nhật giá phòng.')
       afterChange()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -214,7 +215,7 @@ export default function InvoiceDrawer({
         currentWaterReading: values.currentWaterReading ?? null,
       }),
     onSuccess: () => {
-      message.success('Đã cập nhật chỉ số công tơ')
+      message.success('Đã cập nhật chỉ số công tơ.')
       afterChange()
     },
     onError: (error) => message.error(getErrorMessage(error)),
@@ -254,17 +255,17 @@ export default function InvoiceDrawer({
   const watchedCurrentWater = Form.useWatch('currentWaterReading', readingsForm)
 
   const formatReading = (value: number | null | undefined) =>
-    value == null ? null : value.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
+    value == null ? null : formatNumber(value, 2)
 
   const consumptionText = (pre: number | null | undefined, current: number | null | undefined) => {
     if (pre == null || current == null) return null
     const qty = current - pre
-    return qty.toLocaleString('vi-VN', { maximumFractionDigits: 2 })
+    return formatNumber(qty, 2)
   }
 
   const extraText = (pre: number | null | undefined, current: number | null | undefined, unit?: string) => {
     if (pre == null || current == null || current < pre) return undefined
-    const qty = (current - pre).toLocaleString('vi-VN', { maximumFractionDigits: 2 })
+    const qty = formatNumber(current - pre, 2)
     return `Tiêu thụ: ${qty}${unit ? ` ${unit}` : ''}`
   }
 
@@ -310,7 +311,7 @@ export default function InvoiceDrawer({
       key: 'quantity',
       width: 100,
       align: 'right' as const,
-      render: (value: number) => value.toLocaleString('vi-VN'),
+      render: (value: number) => formatNumber(value),
     },
     {
       title: 'Đơn giá',
@@ -318,7 +319,7 @@ export default function InvoiceDrawer({
       key: 'unitPrice',
       width: 130,
       align: 'right' as const,
-      render: (value: number) => formatVnd(value),
+      render: (value: number) => <span style={MONEY_CELL}>{formatVnd(value)}</span>,
     },
     {
       title: 'Thành tiền',
@@ -326,7 +327,7 @@ export default function InvoiceDrawer({
       key: 'amount',
       width: 140,
       align: 'right' as const,
-      render: (value: number) => formatVnd(value),
+      render: (value: number) => <span style={MONEY_CELL}>{formatVnd(value)}</span>,
     },
     ...(canManage && detail && detail.status !== 'PAID'
       ? [
@@ -369,22 +370,29 @@ export default function InvoiceDrawer({
 
   return (
     <Drawer
-      title={detail ? `Hóa đơn ${detail.roomNumber} kỳ ${detail.period}` : 'Chi tiết hóa đơn'}
+      title={detail ? `Hóa đơn ${detail.roomNumber} kỳ ${formatPeriod(detail.period)}` : 'Chi tiết hóa đơn'}
       open={open}
       onClose={onClose}
-      width={720}
+      width="min(720px, calc(100vw - 48px))"
       extra={
         canManage && detail ? (
           <Space>
             {(detail.status === 'DRAFT') && (
-              <Button
-                color="green"
-                variant="solid"
-                loading={publishMutation.isPending}
-                onClick={() => publishMutation.mutate()}
+              <Popconfirm
+                title="Phát hành hóa đơn này?"
+                description="Sau khi phát hành, khách có thể theo dõi và đóng tiền."
+                okText="Phát hành"
+                cancelText="Huỷ"
+                onConfirm={() => publishMutation.mutate()}
               >
-                Phát hành
-              </Button>
+                <Button
+                  color="green"
+                  variant="solid"
+                  loading={publishMutation.isPending}
+                >
+                  Phát hành
+                </Button>
+              </Popconfirm>
             )}
             {(detail.status === 'UNPAID' || detail.status === 'PARTIAL') && (
               <Button
@@ -400,7 +408,11 @@ export default function InvoiceDrawer({
         ) : null
       }
     >
-      {detailQuery.isLoading && <Empty description="Đang tải..." style={{ marginTop: 48 }} />}
+      {detailQuery.isLoading && (
+        <div style={{ marginTop: 48 }}>
+          <Skeleton active paragraph={{ rows: 4 }} />
+        </div>
+      )}
       {detailQuery.isError && (
         <Empty
           description={getErrorMessage(detailQuery.error)}
@@ -414,9 +426,15 @@ export default function InvoiceDrawer({
           <Descriptions size="small" column={{ xs: 1, sm: 2 }} style={{ marginBottom: 16 }}>
             <Descriptions.Item label="Nhà">{detail.houseName}</Descriptions.Item>
             <Descriptions.Item label="Phòng">{detail.roomNumber}</Descriptions.Item>
-            <Descriptions.Item label="Tổng tiền">{formatVnd(detail.totalAmount)}</Descriptions.Item>
-            <Descriptions.Item label="Đã đóng">{formatVnd(detail.paidAmount)}</Descriptions.Item>
-            <Descriptions.Item label="Còn lại">{formatVnd(remaining)}</Descriptions.Item>
+            <Descriptions.Item label="Tổng tiền">
+              <span style={MONEY_CELL}>{formatVnd(detail.totalAmount)}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label="Đã đóng">
+              <span style={MONEY_CELL}>{formatVnd(detail.paidAmount)}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label="Còn lại">
+              <span style={MONEY_CELL}>{formatVnd(remaining)}</span>
+            </Descriptions.Item>
             <Descriptions.Item label="Trạng thái">
               <Tag color={STATUS_META[detail.status].color}>
                 {STATUS_META[detail.status].label}
@@ -612,13 +630,15 @@ export default function InvoiceDrawer({
             locale={{
               emptyText: (
                 <Empty
-                  description="Chưa có dòng tiền nào"
+                  description="Chưa có dòng tiền nào, bấm Thêm dòng tiền để bổ sung khoản thu"
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                 />
               ),
             }}
             footer={() => (
-              <Typography.Text strong>Tổng cộng: {formatVnd(detail.totalAmount)}</Typography.Text>
+              <Typography.Text strong>
+                Tổng cộng: <span style={MONEY_CELL}>{formatVnd(detail.totalAmount)}</span>
+              </Typography.Text>
             )}
           />
         </>
@@ -695,7 +715,8 @@ export default function InvoiceDrawer({
       >
         {detail && (
           <Typography.Paragraph type="secondary">
-            Còn lại {formatVnd(remaining)} cho hóa đơn {detail.roomNumber} kỳ {detail.period}
+            Còn lại <span style={MONEY_CELL}>{formatVnd(remaining)}</span> cho hóa đơn{' '}
+            {detail.roomNumber} kỳ {formatPeriod(detail.period)}
           </Typography.Paragraph>
         )}
         <Form

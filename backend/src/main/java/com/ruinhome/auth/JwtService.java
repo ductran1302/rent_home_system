@@ -18,9 +18,14 @@ public class JwtService {
     private final long expirationMs;
 
     public JwtService(
-            @Value("${ruinhome.jwt.secret:${JWT_SECRET:ruinhome-dev-secret-change-me-in-production-0123456789}}")
-            String secret,
+            @Value("${ruinhome.jwt.secret:${JWT_SECRET:}}") String secret,
             @Value("${ruinhome.jwt.expiration-ms:86400000}") long expirationMs) {
+        if (secret == null || secret.isBlank() || secret.length() < 32
+                || secret.contains("change-me") || secret.contains("dev-secret")) {
+            throw new IllegalStateException(
+                    "JWT_SECRET chưa được cấu hình hoặc quá yếu. Hãy đặt biến môi trường JWT_SECRET "
+                            + "tối thiểu 32 ký tự (xem .env.example)");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.expirationMs = expirationMs;
     }

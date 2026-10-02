@@ -5,12 +5,13 @@ import {
   Form,
   InputNumber,
   Modal,
+  Skeleton,
   Table,
 } from 'antd'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api, getErrorMessage } from '../../api/client'
-import { formatVnd } from '../../utils/format'
+import { formatPeriod, formatVnd, MONEY_CELL } from '../../utils/format'
 
 interface FeeType {
   id: number
@@ -59,7 +60,7 @@ export default function FeeRateModal({
     mutationFn: async (values: { feeTypeId: number; price: number }) =>
       api.put('/billing/fee-rates', { ...values, period }),
     onSuccess: () => {
-      message.success('Đã lưu giá kỳ ' + period)
+      message.success('Đã lưu giá kỳ ' + formatPeriod(period) + '.')
       setEditingType(null)
       form.resetFields()
       queryClient.invalidateQueries({ queryKey: ['fee-rates'] })
@@ -94,11 +95,11 @@ export default function FeeRateModal({
       render: (_: unknown, row: RateRow) => row.type.unit,
     },
     {
-      title: `Giá kỳ ${period}`,
+      title: `Giá kỳ ${formatPeriod(period)}`,
       key: 'price',
       width: 180,
       render: (_: unknown, row: RateRow) =>
-        row.rate ? formatVnd(row.rate.price) : 'Chưa cấu hình',
+        row.rate ? <span style={MONEY_CELL}>{formatVnd(row.rate.price)}</span> : 'Chưa cấu hình',
     },
     {
       title: 'Thao tác',
@@ -121,14 +122,14 @@ export default function FeeRateModal({
 
   return (
     <Modal
-      title={`Cấu hình giá kỳ ${period}`}
+      title={`Cấu hình giá kỳ ${formatPeriod(period)}`}
       open={open}
       onCancel={onClose}
       footer={null}
       width={560}
     >
       {ratesQuery.isLoading ? (
-        <Empty description="Đang tải..." />
+        <Skeleton active paragraph={{ rows: 4 }} />
       ) : (
         <Table
           rowKey={(row) => row.type.id}
@@ -143,7 +144,7 @@ export default function FeeRateModal({
       )}
 
       <Modal
-        title={editingType ? `Giá ${editingType.name} kỳ ${period}` : ''}
+        title={editingType ? `Giá ${editingType.name} kỳ ${formatPeriod(period)}` : ''}
         open={editingType != null}
         onCancel={() => setEditingType(null)}
         onOk={() => form.submit()}
