@@ -35,6 +35,17 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
 
     boolean existsByRoomIdAndStatus(Long roomId, ContractStatus status);
 
+    @Query("""
+            select c from Contract c
+              join fetch c.room r
+              join fetch r.house h
+            where c.status = com.ruinhome.contract.ContractStatus.ACTIVE
+              and c.endDate >= :from
+              and c.endDate <= :to
+            """)
+    List<Contract> findActiveEndingBetween(@Param("from") LocalDate from,
+                                           @Param("to") LocalDate to);
+
     @Modifying
     @Query("update Contract c set c.status = :to, c.updatedAt = CURRENT_TIMESTAMP "
             + "where c.status = :from and c.endDate < :today")

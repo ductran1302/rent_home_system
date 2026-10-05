@@ -19,6 +19,16 @@ public interface AssetRepairRepository extends JpaRepository<AssetRepair, Long> 
     List<AssetRepair> findByAssetIdIn(Collection<Long> assetIds);
 
     @Query("""
+            select r from AssetRepair r
+              join fetch r.asset a
+              join fetch a.room rr
+              join fetch rr.house h
+            where r.status = com.ruinhome.asset.AssetRepairStatus.PENDING
+              and r.reportedAt <= :cutoff
+            """)
+    List<AssetRepair> findPendingSince(@Param("cutoff") LocalDate cutoff);
+
+    @Query("""
             select coalesce(sum(r.cost), 0) from AssetRepair r
             where r.asset.id in :assetIds
               and r.reportedAt >= :from

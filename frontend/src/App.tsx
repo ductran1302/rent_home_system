@@ -14,6 +14,7 @@ const ContractsPage = lazy(() => import('./pages/ContractsPage'))
 const BillingPage = lazy(() => import('./pages/BillingPage'))
 const AssetsPage = lazy(() => import('./pages/AssetsPage'))
 const AccountsPage = lazy(() => import('./pages/AccountsPage'))
+const NoticesPage = lazy(() => import('./pages/NoticesPage'))
 
 export default function App() {
   return (
@@ -61,6 +62,14 @@ export default function App() {
             element={
               <RoleRoute roles={['ADMIN']}>
                 <AccountsPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="notices"
+            element={
+              <RoleRoute roles={['ADMIN', 'MANAGER']}>
+                <NoticesPage />
               </RoleRoute>
             }
           />

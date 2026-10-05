@@ -11,7 +11,9 @@
 - **Tài sản**: danh mục tài sản theo phòng (nhóm, tình trạng, giá mua), lịch sử sửa chữa kèm chi phí, ảnh đối chiếu (mỗi tài sản và mỗi lần sửa tối đa 5 ảnh trước hoặc sau khi sửa), và bàn giao hoặc thu hồi tài sản ngay trong biểu mẫu hợp đồng. Tài sản đang giao trong hợp đồng thì xoá mềm trả `409`.
 - **Hợp đồng**: thuê theo kỳ, liệt kê người cùng thuê, trạng thái `ACTIVE` / `EXPIRED` / `TERMINATED`, thanh lý hợp đồng, ghi chú thêm (ngày dọn đến, tiền cọc), giá điện, nước, mạng, dịch vụ chung theo từng hợp đồng (để trống thì lấy giá chung của kỳ). Mỗi phòng chỉ có tối đa một hợp đồng `ACTIVE` (bắt buộc ở tầng database).
 - **Hóa đơn**: loại phí và biểu giá theo kỳ (chỉ admin gốc cấu hình giá chung), chỉ số điện nước, sinh hóa đơn theo kỳ, phát hành, thu tiền từng phần, thêm sửa dòng tiền thủ công, đổi giá phòng của từng kỳ hóa đơn kèm lý do.
-- **Thống kê**: số nhà, số phòng, phòng trống, hợp đồng còn hiệu lực, hóa đơn chưa thu, công nợ còn lại.
+- **Thống kê**: số nhà, số phòng, phòng trống, hợp đồng còn hiệu lực, hóa đơn chưa thu, công nợ còn lại; trang tổng quan có biểu đồ cột chồng hóa đơn theo từng tháng trong năm (đã thu và còn phải thu), số liệu theo đúng vai trò.
+- **Thông báo**: chuông trên thanh header đếm thông báo chưa đọc, tự quét hằng ngày lúc 07:00 (và khi khởi động): hợp đồng sắp hết hạn, hóa đơn kỳ trước chưa thu đủ, chưa nhập chỉ số điện nước, lần sửa chữa chờ lâu, tài khoản quản lý sắp hết hạn; phát hành hóa đơn và ghi nhận thu tiền (một phần hoặc đủ) báo ngay cho khách thuê liên kết. Mỗi sự kiện chỉ báo một lần, bấm vào là nhảy đúng trang xử lý.
+- **Thông báo quan trọng**: thanh chạy đỏ trên header hiển thị tin do admin và quản lý tạo, tự cuộn khi tràn, tạm dừng khi rê chuột. Quản lý tạo theo từng nhà của mình, admin chọn một nhà hoặc tất cả nhà và đặt cửa sổ thời gian hiển thị; quản lý mục này ở nhóm **Quản lý** cùng **Tài khoản** (admin).
 - **Ảnh hợp đồng**: API upload, xem, xoá đã có (tối đa 5 MB/ảnh, `jpg` / `png` / `webp`). UI đặt khung ảnh trống ở biểu mẫu sửa hợp đồng, phần upload làm ở giai đoạn sau.
 
 ## Kiến trúc
@@ -19,7 +21,7 @@
 | Thành phần | Công nghệ |
 | --- | --- |
 | Backend | Spring Boot 3.5, Java 17 (dev) / 21 (Docker), Spring Security + JWT, Spring Data JPA |
-| Database | PostgreSQL 16, Flyway (`V1__init.sql` đến `V11__asset_photo.sql`) |
+| Database | PostgreSQL 16, Flyway (`V1__init.sql` đến `V13__important_notice.sql`) |
 | Frontend | Vite 7, React 19, TypeScript 5, Ant Design 5, TanStack Query 5, React Router 7, axios |
 | Packaging | Docker Compose: `postgres`, `api`, `web` (nginx) |
 

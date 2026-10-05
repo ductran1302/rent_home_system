@@ -39,13 +39,15 @@ public class InvoiceService {
     private final FeeRateRepository feeRateRepository;
     private final MeterReadingRepository meterReadingRepository;
     private final CurrentUserService currentUserService;
+    private final InvoiceNotifier invoiceNotifier;
 
     public InvoiceService(InvoiceRepository invoiceRepository, ContractRepository contractRepository,
                           ContractFeePriceRepository contractFeePriceRepository,
                           RoomRepository roomRepository, FeeTypeRepository feeTypeRepository,
                           FeeRateRepository feeRateRepository,
                           MeterReadingRepository meterReadingRepository,
-                          CurrentUserService currentUserService) {
+                          CurrentUserService currentUserService,
+                          InvoiceNotifier invoiceNotifier) {
         this.invoiceRepository = invoiceRepository;
         this.contractRepository = contractRepository;
         this.contractFeePriceRepository = contractFeePriceRepository;
@@ -54,6 +56,7 @@ public class InvoiceService {
         this.feeRateRepository = feeRateRepository;
         this.meterReadingRepository = meterReadingRepository;
         this.currentUserService = currentUserService;
+        this.invoiceNotifier = invoiceNotifier;
     }
 
     @Transactional
@@ -167,7 +170,9 @@ public class InvoiceService {
                     "Chỉ phát hành được hóa đơn nháp");
         }
         invoice.setStatus(InvoiceStatus.UNPAID);
-        return toDetailResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        invoiceNotifier.onInvoicePublished(saved.getId());
+        return toDetailResponse(saved);
     }
 
     @Transactional
@@ -187,7 +192,9 @@ public class InvoiceService {
         } else {
             invoice.setStatus(InvoiceStatus.PARTIAL);
         }
-        return toDetailResponse(invoiceRepository.save(invoice));
+        Invoice saved = invoiceRepository.save(invoice);
+        invoiceNotifier.onInvoicePaid(saved.getId());
+        return toDetailResponse(saved);
     }
 
     @Transactional

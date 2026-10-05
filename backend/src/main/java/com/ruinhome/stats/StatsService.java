@@ -2,6 +2,7 @@ package com.ruinhome.stats;
 
 import com.ruinhome.auth.CurrentUserService;
 import com.ruinhome.billing.InvoiceRepository;
+import com.ruinhome.billing.InvoiceRevenue;
 import com.ruinhome.billing.InvoiceStatus;
 import com.ruinhome.contract.ContractRepository;
 import com.ruinhome.contract.ContractStatus;
@@ -12,6 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class StatsService {
@@ -69,5 +74,39 @@ public class StatsService {
 
         return new StatsResponse(houseCount, roomCount, vacantRoomCount, activeContractCount,
                 unpaidInvoiceCount, outstandingDebt);
+    }
+
+    @Transactional(readOnly = true)
+    public StatsDtos.RevenueResponse revenue(int year) {
+        var account = currentUserService.account();
+        Long ownerScope = null;
+        Long userScope = null;
+        String areaScope = null;
+        if (account.getRole() == Role.ADMIN) {
+            areaScope = currentUserService.areaOrNull();
+        } else if (account.getRole() == Role.MANAGER) {
+            ownerScope = currentUserService.personId();
+        } else if (account.getRole() == Role.USER) {
+            userScope = currentUserService.personIdOrNull();
+        }
+
+        Map<String, InvoiceRevenue> byPeriod = Map.of();
+        if (userScope != null || account.getRole() != Role.USER) {
+            byPeriod = invoiceRepository.sumRevenueByPeriod(
+                            String.format("%d-01", year), String.format("%d-12", year),
+                            ownerScope, userScope, areaScope)
+                    .stream()
+                    .collect(Collectors.toMap(InvoiceRevenue::period, row -> row, (a, b) -> a));
+        }
+
+        List<StatsDtos.MonthRevenue> months = new ArrayList<>();
+        for (int month = 1; month <= 12; month++) {
+            String period = String.format("%d-%02d", year, month);
+            InvoiceRevenue row = byPeriod.get(period);
+            months.add(new StatsDtos.MonthRevenue(period,
+                    row == null ? 0L : row.collected(),
+                    row == null ? 0L : row.outstanding()));
+        }
+        return new StatsDtos.RevenueResponse(year, months);
     }
 }

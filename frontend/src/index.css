@@ -31,3 +31,21 @@ body {
   line-height: 1 !important;
   transform: none !important;
 }
+
+@keyframes notice-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.notice-ticker-track {
+  animation: notice-ticker-scroll var(--notice-ticker-duration, 20s) linear infinite;
+  will-change: transform;
+}
+
+.notice-ticker-track:hover {
+  animation-play-state: paused;
+}

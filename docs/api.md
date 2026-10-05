@@ -58,8 +58,9 @@ Tài khoản `MANAGER` có thời hạn quản lý (`managerStartDate`, `manager
 | POST | `/api/auth/register` | Không | `{ "username", "password" }` | `201` (`403` khi tắt đăng ký tự do) |
 | GET | `/api/auth/me` | JWT | | `{ "username", "role", "personId", "fullName", "root" }` |
 | GET | `/api/stats` | JWT | | `{ houseCount, roomCount, vacantRoomCount, activeContractCount, unpaidInvoiceCount, outstandingDebt }` |
+| GET | `/api/stats/revenue` | JWT | `year=2026` (mặc định năm hiện tại) | `{ year, months: [{ period, collected, outstanding }, ... 12 tháng] }` |
 
-`login` trả `403` khi tài khoản `MANAGER` chưa đến hoặc đã qua thời hạn quản lý. `stats` của `USER` chưa liên kết hồ sơ trả toàn số `0`.
+`login` trả `403` khi tài khoản `MANAGER` chưa đến hoặc đã qua thời hạn quản lý. `stats` của `USER` chưa liên kết hồ sơ trả toàn số `0`. `stats/revenue` cộng tiền đã thu và còn phải thu theo từng tháng trong năm của hóa đơn trong phạm vi người dùng (giống `stats`), tháng chưa có hóa đơn vẫn xuất hiện với số `0`.
 
 `register` tạo tài khoản `ADMIN` (chủ cho thuê) bật sẵn, khu vực mang tên chính tài khoản đó, chưa phải admin gốc và chưa liên kết hồ sơ (liên kết sau qua trang Tài khoản). Tên đăng nhập gồm chữ, số, dấu chấm, gạch nối (`3` đến `100` ký tự), trùng trả `409`; mật khẩu `8` đến `32` ký tự; sai quy tắc trả `400`.
 
@@ -210,6 +211,30 @@ Trạng thái hóa đơn: `DRAFT` (mới sinh) `publish` sang `UNPAID`, thu mộ
 **Chỉ số công tơ**: hóa đơn giữ 4 trường `preElectReading`, `currentElectReading` (điện), `preWaterReading`, `currentWaterReading` (nước) là số công tơ đầu kỳ và cuối kỳ; tiêu thụ = cuối kỳ trừ đầu kỳ. `readings` cập nhật cả 4 trường trong một lần gọi, bắt buộc có đầu kỳ khi điền cuối kỳ, `current < pre` trả `400`. Tiêu thụ lớn hơn 0 thì tạo hoặc cập nhật dòng điện/nước (ưu tiên `fee_rate` của kỳ, không có thì giá ghi trong hợp đồng còn hiệu lực trong kỳ, thiếu cả hai trả `400` với thông báo `Chưa có cấu hình giá kỳ MM/yyyy`), bằng 0 thì xoá dòng đó, `current = null` thì chỉ ghi chỉ số không đụng dòng; tính lại `totalAmount` và trạng thái, hóa đơn `PAID` trả `409`.
 
 Sinh hóa đơn (`generate`): với điện và nước, chụp chỉ số vào hóa đơn: đầu kỳ lấy `currentElectReading`/`currentWaterReading` của hóa đơn cùng phòng kỳ trước, không có thì lấy chỉ số đã nhập kỳ trước, không có gì thì `0`; cuối kỳ lấy chỉ số đã nhập qua `meters` (chưa nhập thì để trống, nhập sau bằng `readings`). Dòng tiền điện/nước tính bằng tiêu thụ (cuối kỳ trừ đầu kỳ) nhân giá (ưu tiên `fee_rate` của kỳ, không có thì giá ghi trong hợp đồng), cuối kỳ chưa nhập thì chưa có dòng; thiếu giá hoặc chỉ số cuối kỳ nhỏ hơn đầu kỳ ghi lý do trong `skipped`. Mạng và dịch vụ chung lấy giá theo cùng thứ tự ưu tiên đó, thiếu thì bỏ qua dòng đó.
+
+### Thông báo
+
+| Method | Path | Vai trò | Body / query | Trả về |
+| --- | --- | --- | --- | --- |
+| GET | `/api/notifications` | Đăng nhập | `unread=false`, `page=0`, `size=20` | Phân trang thông báo của chính mình |
+| GET | `/api/notifications/unread-count` | Đăng nhập | | `{ "count": n }` |
+| POST | `/api/notifications/{id}/read` | Đăng nhập | | Thông báo đã đọc (`404` nếu không phải của mình) |
+| POST | `/api/notifications/read-all` | Đăng nhập | | `{ "updated": n }` |
+| POST | `/api/notifications/scan` | ADMIN | | `{ "created": n }`, quét sinh thông báo ngay |
+
+Mỗi người chỉ thấy thông báo của mình (đã gán `user_id` khi sinh, không lọc khu vực khi đọc). Thông báo sinh tự động khi khởi động app và hằng ngày lúc 07:00: hợp đồng sắp hết hạn trong 7 ngày, hóa đơn kỳ trước chưa thu đủ, phòng chưa nhập chỉ số điện/nước kỳ này (chỉ báo nếu kỳ trước đã nhập), lần sửa chữa chờ quá 7 ngày, tài khoản quản lý sắp hết hạn. Phát hành hóa đơn báo cho người dùng liên kết với khách thuê ngay lúc đó, và mỗi lần ghi nhận thu tiền (một phần hoặc đủ) cũng báo kèm số tiền đã nhận, còn thiếu. Mỗi sự kiện chỉ sinh một lần cho mỗi người, thông báo đã đọc quá 90 ngày bị xoá lúc quét; `scan` chạy lại bao nhiêu lần cũng không sinh trùng.
+
+### Thông báo quan trọng
+
+| Method | Path | Vai trò | Body / query | Trả về |
+| --- | --- | --- | --- | --- |
+| GET | `/api/notices` | ADMIN, MANAGER | | Danh sách theo scope (admin gốc: tất cả; admin khu vực: khu vực; quản lý: tin toàn hệ thống và tin nhà mình) |
+| GET | `/api/notices/active` | Đăng nhập | | Tin đang bật và nằm trong cửa sổ thời gian, theo vai trò (không có `house` = tin chung) |
+| POST | `/api/notices` | ADMIN, MANAGER | `{ title, content, houseId, startsAt, endsAt }` | Thông báo mới tạo (`400` quản lý bỏ trống `houseId` hoặc thời gian đảo, `403` nhà ngoài phạm vi) |
+| PUT | `/api/notices/{id}` | ADMIN, MANAGER | như `POST` | Thông báo đã sửa (`404` ngoài scope) |
+| DELETE | `/api/notices/{id}` | ADMIN, MANAGER | | `{ "message": "Đã xoá thông báo" }` (xoá mềm, ngoài scope trả `404`) |
+
+Thông báo quan trọng hiển thị trên thanh chạy đỏ ở header. `houseId = null` là tin toàn hệ thống (chỉ admin tạo được), `startsAt` / `endsAt` nullable để không giới hạn thời gian; `title` tối đa 200, `content` tối đa 1000 ký tự. Quản lý luôn phải chọn một nhà mà mình là chủ hoặc quản lý; admin thường bị chặn theo khu vực, admin gốc chọn được tất cả.
 
 ## Ví dụ
 

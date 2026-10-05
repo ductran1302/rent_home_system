@@ -29,7 +29,9 @@ Package theo domain tại `backend/src/main/java/com/ruinhome/`:
 | `asset` | Tài sản theo phòng, lịch sử sửa chữa, ảnh tài sản và ảnh lần sửa; chỉ đọc hợp đồng qua `ContractHandoverPort` |
 | `contract` | Hợp đồng, người cùng thuê, ảnh hợp đồng, giá phí và ghi chú theo hợp đồng, giao và thu hồi tài sản |
 | `billing` | Loại phí, biểu giá, chỉ số, hóa đơn, thanh toán |
-| `stats` | Thống kê cho trang tổng quan |
+| `notification` | Thông báo in-app: bảng `notification`, scheduler quét sự kiện, danh sách và đánh dấu đã đọc |
+| `notice` | Thông báo quan trọng hiện trên header (ticker): CRUD theo scope, lọc tin đang hiệu lực theo vai trò |
+| `stats` | Thống kê cho trang tổng quan: số liệu thẻ và doanh thu theo tháng (`/stats/revenue`), cùng phạm vi lọc theo vai trò |
 | `file` | Lưu file ảnh trên đĩa, kiểm tra định dạng |
 | `common` | `BaseEntity`, `ApiExceptionHandler`, `MultipartConfiguration`, `HealthController` |
 
@@ -60,6 +62,15 @@ Luôn theo tầng `controller -> service -> repository`. Controller chỉ khai b
 - Quản lý tài khoản (`/api/users`): chỉ tạo được vai trò `MANAGER` và `USER`; `MANAGER` bắt buộc liên kết hồ sơ và ngày bắt đầu quản lý, `ADMIN` sửa hồ sơ là tùy chọn; không xoá cứng tài khoản, chỉ tắt `enabled`; không tự tắt hoặc tự đổi vai trò của chính mình; admin thường chỉ sửa tài khoản trong khu vực mình, ngoài khu vực trả `404`.
 - Ảnh hợp đồng: 5 MB mỗi file, chỉ `jpeg` / `png` / `webp`, lưu dạng `UUID.ext` trong `upload-dir`, metadata ghi vào bảng `contract_photo`.
 - Mọi lỗi đi qua `ApiExceptionHandler`, trả `{ status, message }`, lỗi validate thêm `fields`.
+
+### Thông báo
+
+- Bảng `notification` theo từng `user_id` kèm `dedup_key` unique `(user_id, dedup_key)`: mỗi sự kiện chỉ sinh một lần cho mỗi người, thông báo đã đọc quá 90 ngày bị xoá lúc quét.
+- `NotificationScanService.scan()` quét 5 loại sự kiện: hợp đồng `ACTIVE` hết hạn trong 7 ngày, hóa đơn kỳ trước còn `UNPAID` / `PARTIAL`, phòng có hợp đồng phủ kỳ này mà thiếu chỉ số điện hoặc nước (chỉ báo khi kỳ trước đã từng nhập), lần sửa `PENDING` quá 7 ngày, tài khoản `MANAGER` hết hạn trong 7 ngày. Người nhận là admin gốc cộng quản trị/quản lý có khu vực trùng (`coalesce(area_admin, username) = khu vực nhà`).
+- `NotificationScheduler` chạy `scan()` khi app sẵn sàng và theo cron `0 0 7 * * *` (mặc định 07:00, zone `Asia/Ho_Chi_Minh`), tắt bằng `NOTIFICATION_SCAN_ENABLED=false`; `POST /api/notifications/scan` (ADMIN) cho phép quét ngay. `scan()` không dùng `CurrentUserService` (luồng scheduled không có security context).
+- Phát hành hóa đơn và ghi nhận thu tiền (một phần hoặc đủ) đi qua port `InvoiceNotifier` (package `billing`, implement trong package `notification`): báo cho người dùng liên kết với người giữ hoặc người cùng thuê của hợp đồng phủ kỳ hóa đơn, đúng cách `billing` chỉ đọc hợp đồng qua interface như `ContractHandoverPort`. Phát hành báo `Hóa đơn mới`; mỗi lần thu tiền báo `Ghi nhận đóng tiền` kèm số tiền đã nhận và còn thiếu, `dedup_key` mang số tiền lũy kế nên mỗi lần ghi nhận đúng một thông báo.
+- Danh sách, đếm chưa đọc, đánh dấu đã đọc đều theo tài khoản hiện tại, không cần lọc khu vực vì thông báo đã gán đúng người khi sinh.
+- Thông báo quan trọng (bảng `important_notice`, package `notice`): admin và quản lý tạo tin ngắn hiển thị chạy trên header. Admin chọn một nhà hoặc "Tất cả nhà", quản lý bắt buộc chọn nhà của mình (chủ hoặc quản lý của nhà đó), admin thường bị chặn theo khu vực. Tiêu đề tối đa 200 ký tự, nội dung 1000; `starts_at` / `ends_at` nullable đặt cửa sổ hiển thị, kết thúc phải sau bắt đầu; `active = false` là xoá mềm. `GET /api/notices` trả danh sách quản lý theo scope, `POST` / `PUT` / `DELETE` chỉ `ADMIN` hoặc `MANAGER`, mọi vai trò lấy tin đang hiệu lực qua `GET /api/notices/active`: `USER` thấy tin toàn hệ thống cộng tin của nhà mình có hợp đồng, `MANAGER` thấy tin toàn hệ thống cộng tin của nhà mình, `ADMIN` theo khu vực.
 
 ### Entity chung
 
@@ -92,6 +103,10 @@ Migration qua Flyway, chỉ thêm `V<n>__*.sql` mới.
 **`V10__asset_repair.sql`**: cột `asset.category` (`VARCHAR(30)`, mặc định `KHAC`, backfill nhóm cho dữ liệu mẫu theo tên), bảng `contract_asset` (bàn giao tài sản theo hợp đồng: `handover_condition`, `return_condition`, `returned_at`, unique `(contract_id, asset_id)`), bảng `asset_repair` (lịch sử sửa chữa: `reported_at`, `description`, `cost >= 0`, `status`, `done_at`) và 3 dòng sửa chữa mẫu.
 
 **`V11__asset_photo.sql`**: bảng `asset_photo` (`asset_id` không null, `repair_id` nullable xoá theo `asset_repair`, `stage VARCHAR(10)` chỉ nhận `TRUOC` / `SAU`, `file_path`, `original_name`, `uploaded_at TIMESTAMPTZ`), hai check (`stage IN ('TRUOC','SAU')` và `repair_id` null đúng lúc `stage` null) cùng index theo `asset_id`, `repair_id`.
+
+**`V12__notification.sql`**: bảng `notification` (`user_id` FK `user_account`, `type VARCHAR(40)`, `title`, `body`, `link`, `dedup_key`, `is_read BOOLEAN`), unique `(user_id, dedup_key)` chống sinh trùng sự kiện, hai index theo `user_id` (mới nhất trước) và `user_id + is_read`.
+
+**`V13__important_notice.sql`**: bảng `important_notice` (`title VARCHAR(200)`, `content VARCHAR(1000)`, `house_id` FK `house` nullable = thông báo toàn hệ thống, `starts_at` / `ends_at TIMESTAMPTZ` nullable, `active BOOLEAN`), index theo `house_id`.
 
 Quy ước cột: tiền `BIGINT` (VND không thập phân), ngày `DATE`, kỳ `VARCHAR(7)` dạng `YYYY-MM`, thời gian `TIMESTAMP`. Tên cột tiếng Anh, trùng với tên field Java.
 
@@ -126,13 +141,14 @@ fee_type (điện, nước, dịch vụ, ...)
 | --- | --- |
 | `api/client.ts` | axios `baseURL: '/api'`, gắn JWT từ `localStorage`, `401` thì xoá token và chuyển `/login` |
 | `auth/` | `AuthProvider` nạp `/api/auth/me`, context cấp `me` và `logout` |
-| `components/` | `AppLayout` (menu theo vai trò, header), `ProtectedRoute`, `RoleRoute` (chặn trang theo vai trò), skeleton, khung ảnh hợp đồng, `PhotoUpload` (upload và xem ảnh tài sản, ảnh trước và sau lần sửa, tải blob có token), `ContractAssetDrawer` (bàn giao và thu hồi tài sản của hợp đồng) |
+| `components/` | `AppLayout` (menu theo vai trò, header), `ProtectedRoute`, `RoleRoute` (chặn trang theo vai trò), skeleton, khung ảnh hợp đồng, `PhotoUpload` (upload và xem ảnh tài sản, ảnh trước và sau lần sửa, tải blob có token), `ContractAssetDrawer` (bàn giao và thu hồi tài sản của hợp đồng), `NotificationBell` (chuông thông báo), `NoticeTicker` (thanh chạy đỏ hiển thị thông báo quan trọng, tự cuộn khi tràn, tạm dừng khi rê chuột) |
 | `components/billing/` | `InvoiceDrawer`, `MeterModal`, `FeeRateModal` |
-| `pages/` | `Login`, `Register`, `Home`, `Houses`, `Persons`, `Contracts`, `Assets`, `Billing`, `Accounts` |
+| `pages/` | `Login`, `Register`, `Home`, `Houses`, `Persons`, `Contracts`, `Assets`, `Billing`, `Accounts`, `Notices` |
 | `utils/format.ts` | Formatter tiền VND dùng chung |
 | `utils/asset.ts` | Nhóm tài sản, tình trạng, trạng thái sửa chữa, loại ảnh và nhãn tiếng Việt dùng chung |
 
-- Menu và route theo vai trò: `USER` chỉ thấy Tổng quan, Hợp đồng, Hóa đơn; `MANAGER` thêm Nhà & phòng (chỉ đọc), Người và Tài sản; `ADMIN` thêm Tài khoản và Tài sản. Truy cập sai vai trò thì `RoleRoute` chuyển về trang tổng quan. Đăng ký tạo `ADMIN` chủ cho thuê nên menu đầy đủ; dữ liệu đã lọc theo khu vực phía server, giao diện không cần phân biệt admin gốc với admin khu vực.
+- Menu và route theo vai trò: `USER` chỉ thấy Tổng quan, Hợp đồng, Hóa đơn; `MANAGER` thêm Nhà & phòng (chỉ đọc), Người, Tài sản và nhóm Quản lý chứa Thông báo; `ADMIN` thêm Tài khoản trong nhóm Quản lý. Nhóm Quản lý tự mở đúng trang đang xem. Truy cập sai vai trò thì `RoleRoute` chuyển về trang tổng quan. Đăng ký tạo `ADMIN` chủ cho thuê nên menu đầy đủ; dữ liệu đã lọc theo khu vực phía server, giao diện không cần phân biệt admin gốc với admin khu vực.
+- `NoticeTicker` ở header gọi `GET /notices/active` mỗi 60 giây, ghép `Tiêu đề: Nội dung` các tin bằng dấu chấm phân cách, chữ màu lỗi (`colorError`); khi tràn thì nhân đôi nội dung và chạy marquee (keyframes `notice-ticker-scroll` trong `index.css`), hết tràn hiển thị thường. Không có tin thì không chiếm chỗ.
 
 - Trạng thái server quản bằng TanStack Query; mỗi trang tự `useQuery`.
 - Route cấp trang dùng `React.lazy`, `AppLayout` bọc `<Outlet>` bằng `Suspense` với `PageSkeleton` khớp khung trang.
