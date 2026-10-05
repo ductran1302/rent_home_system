@@ -98,6 +98,7 @@ export default function FeeRateModal({
       title: `Giá kỳ ${formatPeriod(period)}`,
       key: 'price',
       width: 180,
+      align: 'right' as const,
       render: (_: unknown, row: RateRow) =>
         row.rate ? <span style={MONEY_CELL}>{formatVnd(row.rate.price)}</span> : 'Chưa cấu hình',
     },

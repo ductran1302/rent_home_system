@@ -52,7 +52,9 @@ const pad2 = (value: number): string => String(value).padStart(2, '0')
 
 export const CODE_CELL = { fontFamily: 'monospace' } as const
 
-export const MONEY_CELL = { fontVariantNumeric: 'tabular-nums' } as const
+export const NUM_CELL = { fontVariantNumeric: 'tabular-nums' } as const
+
+export const MONEY_CELL = NUM_CELL
 
 export function formatPeriod(value: string | null | undefined): string {
   if (!value) {

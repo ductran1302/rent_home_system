@@ -14,7 +14,7 @@
 - **1 radius system** (AntD token mặc định, không override lộn xộn từng component).
 - **1 icon family**: `@ant-design/icons` duy nhất. Không hand-rolled SVG icon, không trộn thư viện icon khác.
 - **1 design system**: AntD. Không trộn component library khác vào tree.
-- **Light mode lock** cho GĐ1 (AntD default). Một trang = một theme, không đảo light/dark giữa trang.
+- **Light mode là mặc định**, accent cam `#C25000` (cùng hue với logo, chữ trắng trên nền cam đạt AA 4.7:1). Dark mode là option toàn app (nút ở header), giữ primary blue `#1677FF`. Một trang = một theme, không đảo light/dark giữa trang; accent chỉ khai báo ở `ThemeProvider.tsx`.
 - Không emoji trong UI, markup, message (dùng icon library).
 - Không nền/chữ `#000000` / `#ffffff` thuần (AntD token đã làm đúng, đừng override).
 

@@ -30,7 +30,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
-import { formatVnd } from '../utils/format'
+import { formatNumber, formatVnd } from '../utils/format'
 
 interface Stats {
   houseCount: number
@@ -221,13 +221,26 @@ export default function HomePage() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="label" />
-                <YAxis
-                  tickFormatter={(value: number) => value.toLocaleString('vi-VN')}
-                  width={100}
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: token.colorTextSecondary }}
                 />
-                <Tooltip formatter={(value) => formatVnd(Number(value))} />
-                <Legend />
+                <YAxis
+                  tickFormatter={(value: number) => formatNumber(value, 0)}
+                  width={100}
+                  tick={{ fill: token.colorTextSecondary }}
+                />
+                <Tooltip
+                  formatter={(value) => formatVnd(Number(value))}
+                  contentStyle={{
+                    backgroundColor: token.colorBgElevated,
+                    borderColor: token.colorBorder,
+                    color: token.colorText,
+                  }}
+                  labelStyle={{ color: token.colorTextSecondary }}
+                  itemStyle={{ color: token.colorText }}
+                />
+                <Legend wrapperStyle={{ color: token.colorTextSecondary }} />
                 <Bar
                   dataKey="collected"
                   name={isUser ? 'Đã đóng' : 'Đã thu'}

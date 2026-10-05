@@ -19,7 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api, getErrorMessage } from '../../api/client'
-import { formatNumber, formatPeriod, formatVnd, MONEY_CELL } from '../../utils/format'
+import { formatNumber, formatPeriod, formatVnd, MONEY_CELL, NUM_CELL } from '../../utils/format'
 
 export interface InvoiceLine {
   id: number
@@ -325,7 +325,7 @@ export default function InvoiceDrawer({
       key: 'quantity',
       width: 100,
       align: 'right' as const,
-      render: (value: number) => formatNumber(value),
+      render: (value: number) => <span style={NUM_CELL}>{formatNumber(value)}</span>,
     },
     {
       title: 'Đơn giá',

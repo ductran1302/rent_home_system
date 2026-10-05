@@ -5,16 +5,19 @@ import {
   HomeOutlined,
   KeyOutlined,
   LogoutOutlined,
+  MoonOutlined,
   NotificationOutlined,
   SettingOutlined,
+  SunOutlined,
   TeamOutlined,
   ToolOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { Avatar, Dropdown, Layout, Menu, Space, theme, Typography } from 'antd'
+import { Avatar, Button, Dropdown, Layout, Menu, Space, theme, Typography } from 'antd'
 import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/context'
+import { useThemeMode } from '../theme-context'
 import logoHouse from '../assets/logo-house.svg'
 import logoMark from '../assets/logo-mark.svg'
 import PageSkeleton from './PageSkeleton'
@@ -32,6 +35,7 @@ const ROLE_LABELS: Record<string, string> = {
 export default function AppLayout() {
   const { me, logout } = useAuth()
   const { token } = theme.useToken()
+  const { mode, toggleMode } = useThemeMode()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -142,6 +146,14 @@ export default function AppLayout() {
         >
           <NoticeTicker />
           <NotificationBell />
+          <Button
+            type="text"
+            aria-label={
+              mode === 'dark' ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'
+            }
+            icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+            onClick={toggleMode}
+          />
           <Dropdown menu={userMenu} placement="bottomRight" trigger={['click']}>
             <button
               type="button"

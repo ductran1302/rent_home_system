@@ -12,7 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { api, getErrorMessage } from '../../api/client'
-import { formatPeriod } from '../../utils/format'
+import { CODE_CELL, formatPeriod } from '../../utils/format'
 
 interface HouseOption {
   id: number
@@ -157,7 +157,13 @@ export default function MeterModal({
   })
 
   const columns = [
-    { title: 'Phòng', dataIndex: 'roomNumber', key: 'roomNumber', width: 120 },
+    {
+      title: 'Phòng',
+      dataIndex: 'roomNumber',
+      key: 'roomNumber',
+      width: 120,
+      render: (value: string) => <span style={CODE_CELL}>{value}</span>,
+    },
     ...usageTypes.map((type) => ({
       title: `Chỉ số ${type.name}`,
       key: type.code,

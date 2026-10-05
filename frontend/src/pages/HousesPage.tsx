@@ -19,7 +19,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
-import { formatDateTime, formatNumber } from '../utils/format'
+import { CODE_CELL, formatDateTime, formatNumber, NUM_CELL } from '../utils/format'
 
 interface HouseRow {
   id: number
@@ -292,13 +292,14 @@ export default function HousesPage() {
   ]
 
   const roomColumns = [
-    { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber', width: 110 },
+    { title: 'Số phòng', dataIndex: 'roomNumber', key: 'roomNumber', width: 110, render: (value: string) => <span style={CODE_CELL}>{value}</span> },
     {
       title: 'Diện tích (m²)',
       dataIndex: 'areaM2',
       key: 'areaM2',
       width: 130,
-      render: (value: number | null) => formatNumber(value),
+      align: 'right' as const,
+      render: (value: number | null) => <span style={NUM_CELL}>{formatNumber(value)}</span>,
     },
     {
       title: 'Trạng thái',
