@@ -10,4 +10,4 @@ WORKDIR /app
 RUN mkdir -p /app/uploads
 COPY --from=build /build/target/ruinhome-api-*.jar app.jar
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]
