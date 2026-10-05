@@ -141,6 +141,7 @@ export default function AppLayout() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
+            gap: 16,
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
@@ -158,7 +159,12 @@ export default function AppLayout() {
             <button
               type="button"
               aria-label="Tài khoản"
-              style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                padding: 6,
+                cursor: 'pointer',
+              }}
             >
               <Space>
                 <Avatar size="small" icon={<UserOutlined />} />

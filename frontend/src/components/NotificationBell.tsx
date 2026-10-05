@@ -181,7 +181,6 @@ export default function NotificationBell() {
           border: 'none',
           background: 'transparent',
           padding: 6,
-          marginRight: 16,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',

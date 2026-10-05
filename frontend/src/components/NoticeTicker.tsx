@@ -65,7 +65,6 @@ export default function NoticeTicker() {
       style={{
         flex: 1,
         minWidth: 0,
-        marginRight: 16,
         overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
