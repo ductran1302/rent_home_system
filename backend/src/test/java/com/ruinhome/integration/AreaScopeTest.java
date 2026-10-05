@@ -126,13 +126,13 @@ class AreaScopeTest {
                 .containsExactly("tenantc");
 
         assertThatThrownBy(() -> userService.update(rootId,
-                new UserDtos.UserUpdateRequest(null, "ADMIN", null, null, null, true)))
+                new UserDtos.UserUpdateRequest(null, "ADMIN", null, null, null, null, true)))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.NOT_FOUND));
 
         var updated = userService.update(tenant.getId(),
-                new UserDtos.UserUpdateRequest(null, "ADMIN", null, null, null, true));
+                new UserDtos.UserUpdateRequest(null, "ADMIN", null, null, null, null, true));
         assertThat(updated.role()).isEqualTo(Role.ADMIN);
 
         as("admin", Role.ADMIN);

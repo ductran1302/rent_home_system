@@ -51,4 +51,7 @@ public class UserAccount extends BaseEntity {
 
     @Column(name = "is_root", nullable = false)
     private boolean root;
+
+    @Column(name = "bank_account", length = 30)
+    private String bankAccount;
 }

@@ -31,6 +31,7 @@ interface UserRow {
   enabled: boolean
   managerStartDate: string | null
   managerEndDate: string | null
+  bankAccount: string | null
   createdAt: string
 }
 
@@ -47,6 +48,7 @@ interface UserFormValues {
   personId?: number
   managerStartDate?: Dayjs
   managerEndDate?: Dayjs
+  bankAccount?: string
   enabled: boolean
 }
 
@@ -94,6 +96,7 @@ export default function AccountsPage() {
           ? values.managerStartDate.format('YYYY-MM-DD')
           : null,
         managerEndDate: values.managerEndDate ? values.managerEndDate.format('YYYY-MM-DD') : null,
+        bankAccount: values.bankAccount?.trim() || null,
         enabled: values.enabled,
       }
       if (editing) {
@@ -118,6 +121,7 @@ export default function AccountsPage() {
         personId: row.personId,
         managerStartDate: row.managerStartDate,
         managerEndDate: row.managerEndDate,
+        bankAccount: row.bankAccount,
         enabled,
       }),
     onSuccess: () => {
@@ -143,6 +147,7 @@ export default function AccountsPage() {
       personId: row.personId ?? undefined,
       managerStartDate: row.managerStartDate ? dayjs(row.managerStartDate) : undefined,
       managerEndDate: row.managerEndDate ? dayjs(row.managerEndDate) : undefined,
+      bankAccount: row.bankAccount ?? undefined,
       enabled: row.enabled,
     })
     setModalOpen(true)
@@ -373,6 +378,14 @@ export default function AccountsPage() {
             ]}
           >
             <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" placeholder="Chọn ngày" />
+          </Form.Item>
+          <Form.Item
+            label="Số tài khoản ngân hàng"
+            name="bankAccount"
+            extra="Vietcombank của chủ nhà, dùng sinh mã QR chuyển tiền cho khách thuê"
+            rules={[{ max: 30, message: 'Số tài khoản tối đa 30 ký tự' }]}
+          >
+            <Input placeholder="VD: 0123456789" />
           </Form.Item>
           <Form.Item
             label="Hoạt động"

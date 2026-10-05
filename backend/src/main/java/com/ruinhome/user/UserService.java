@@ -55,6 +55,7 @@ public class UserService {
         account.setRole(role);
         account.setEnabled(request.enabled() == null || request.enabled());
         account.setAreaAdmin(currentUserService.areaForWrite());
+        account.setBankAccount(normalizeBankAccount(request.bankAccount()));
         applyPersonAndPeriod(account, role, request.personId(),
                 request.managerStartDate(), request.managerEndDate());
         return UserDtos.toResponse(userAccountRepository.save(account));
@@ -92,6 +93,7 @@ public class UserService {
         if (request.enabled() != null) {
             account.setEnabled(request.enabled());
         }
+        account.setBankAccount(normalizeBankAccount(request.bankAccount()));
         applyPersonAndPeriod(account, requested, request.personId(),
                 request.managerStartDate(), request.managerEndDate());
         return UserDtos.toResponse(userAccountRepository.save(account));
@@ -143,5 +145,12 @@ public class UserService {
                     "Tên đăng nhập chỉ gồm chữ, số, dấu chấm, gạch nối, từ 3 đến 100 ký tự");
         }
         return username;
+    }
+
+    private String normalizeBankAccount(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return raw.trim();
     }
 }

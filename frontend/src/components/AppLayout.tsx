@@ -1,11 +1,11 @@
 import {
   ApartmentOutlined,
   FileTextOutlined,
+  DollarOutlined,
   HomeOutlined,
   KeyOutlined,
   LogoutOutlined,
   NotificationOutlined,
-  PayCircleOutlined,
   SettingOutlined,
   TeamOutlined,
   ToolOutlined,
@@ -57,7 +57,7 @@ export default function AppLayout() {
           { key: '/assets', icon: <ToolOutlined />, label: 'Tài sản' },
         ]),
     { key: '/contracts', icon: <FileTextOutlined />, label: 'Hợp đồng' },
-    { key: '/billing', icon: <PayCircleOutlined />, label: 'Hóa đơn' },
+    { key: '/billing', icon: <DollarOutlined />, label: 'Hóa đơn' },
     ...(canManage
       ? [
           {

@@ -80,15 +80,16 @@ Person trả về kèm `createdAt`, `updatedAt`, `createdBy`, `updatedBy` (ISO-8
 
 | Method | Path | Vai trò | Body | Trả về |
 | --- | --- | --- | --- | --- |
-| GET | `/api/users` | ADMIN | | Mảng `{ id, username, role, personId, fullName, enabled, managerStartDate, managerEndDate, createdAt }` |
-| POST | `/api/users` | ADMIN | `{ username*, password*, role*, personId, managerStartDate, managerEndDate, enabled }` | `201` + user |
-| PUT | `/api/users/{id}` | ADMIN | `{ password, role*, personId, managerStartDate, managerEndDate, enabled }` | user |
+| GET | `/api/users` | ADMIN | | Mảng `{ id, username, role, personId, fullName, enabled, managerStartDate, managerEndDate, bankAccount, createdAt }` |
+| POST | `/api/users` | ADMIN | `{ username*, password*, role*, personId, managerStartDate, managerEndDate, bankAccount, enabled }` | `201` + user |
+| PUT | `/api/users/{id}` | ADMIN | `{ password, role*, personId, managerStartDate, managerEndDate, bankAccount, enabled }` | user |
 
 - Không có `DELETE`: tắt tài khoản bằng `enabled = false`; không thể tự tắt tài khoản của chính mình.
 - `role` khi tạo chỉ nhận `MANAGER` hoặc `USER` (admin chỉ tạo được qua `register`); không đổi được vai trò `ADMIN` và không tự đổi vai trò của mình.
 - `MANAGER` bắt buộc có `personId` và `managerStartDate` (`yyyy-MM-dd`), `managerEndDate` tùy chọn (để trống là không giới hạn); quá thời hạn thì không đăng nhập được. Tài khoản tạo ra thuộc khu vực của người tạo.
 - `ADMIN` khi sửa `personId` tùy chọn (để trống là gỡ liên kết hồ sơ). Không phải admin gốc chỉ sửa được tài khoản cùng khu vực, ngoài khu vực trả `404`.
 - `username` duy nhất, `[A-Za-z0-9._-]{3,100}`; `password` tối thiểu 6 ký tự, bỏ trống khi sửa là giữ nguyên.
+- `bankAccount` là số tài khoản ngân hàng Vietcombank tối đa 30 ký tự, gửi chuỗi rỗng hoặc `null` thì xoá; dùng sinh mã QR chuyển tiền cho khách thuê khi xem chi tiết hóa đơn.
 
 ### Nhà và phòng
 
@@ -194,7 +195,7 @@ Chỉ số nhập ở đây được chép vào hóa đơn (`currentElectReading
 | Method | Path | Vai trò | Body / query | Trả về |
 | --- | --- | --- | --- | --- |
 | GET | `/api/billing/invoices` | Đọc | `period`, `houseId`, `status`, `page`, `size` | Phân trang |
-| GET | `/api/billing/invoices/{id}` | Đọc | | Hóa đơn kèm `lines`, `contractRent`, `roomPriceNote`, 4 trường chỉ số công tơ |
+| GET | `/api/billing/invoices/{id}` | Đọc | | Hóa đơn kèm `lines`, `contractRent`, `roomPriceNote`, 4 trường chỉ số công tơ, `bankAccount` |
 | POST | `/api/billing/invoices/generate` | ADMIN, MANAGER | `period` (query) | `{ created, skipped: [{ roomId, roomNumber, reason }] }` |
 | POST | `/api/billing/invoices/{id}/publish` | ADMIN, MANAGER | Không | Hóa đơn `UNPAID` |
 | POST | `/api/billing/invoices/{id}/payments` | ADMIN, MANAGER | `{ amount* }` (tối thiểu 1) | Hóa đơn sau khi cộng tiền |
@@ -207,6 +208,8 @@ Chỉ số nhập ở đây được chép vào hóa đơn (`currentElectReading
 Trạng thái hóa đơn: `DRAFT` (mới sinh) `publish` sang `UNPAID`, thu một phần thành `PARTIAL`, đủ tiền thành `PAID`. Khóa `totalAmount` tính lại theo các dòng tiền.
 
 `room-price` đổi đơn giá dòng tiền phòng (dòng có `feeCode = PHONG`), ghi `note` vào `roomPriceNote`, tính lại `totalAmount` và trạng thái; hóa đơn `PAID` trả `409`. `contractRent` trong chi tiết là giá phòng theo hợp đồng phủ kỳ hóa đơn, dùng để so với giá đang áp dụng.
+
+`bankAccount` trong chi tiết là số tài khoản Vietcombank lấy từ tài khoản người dùng đã liên kết hồ sơ chủ nhà của nhà có hóa đơn (null khi chủ nhà chưa liên kết hoặc chưa điền số tài khoản). Frontend dùng số này dựng mã QR VietQR cho khách thuê: `amount` là số tiền còn lại, `addInfo` là `<số phòng> TIEN PHONG THANG <tháng>`; hóa đơn đã đóng đủ hoặc tài khoản quản trị xem thì không hiển thị mã QR.
 
 **Chỉ số công tơ**: hóa đơn giữ 4 trường `preElectReading`, `currentElectReading` (điện), `preWaterReading`, `currentWaterReading` (nước) là số công tơ đầu kỳ và cuối kỳ; tiêu thụ = cuối kỳ trừ đầu kỳ. `readings` cập nhật cả 4 trường trong một lần gọi, bắt buộc có đầu kỳ khi điền cuối kỳ, `current < pre` trả `400`. Tiêu thụ lớn hơn 0 thì tạo hoặc cập nhật dòng điện/nước (ưu tiên `fee_rate` của kỳ, không có thì giá ghi trong hợp đồng còn hiệu lực trong kỳ, thiếu cả hai trả `400` với thông báo `Chưa có cấu hình giá kỳ MM/yyyy`), bằng 0 thì xoá dòng đó, `current = null` thì chỉ ghi chỉ số không đụng dòng; tính lại `totalAmount` và trạng thái, hóa đơn `PAID` trả `409`.
 

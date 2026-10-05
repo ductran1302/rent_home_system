@@ -63,6 +63,7 @@ public final class BillingDtos {
                                         Long contractRent,
                                         BigDecimal preElectReading, BigDecimal currentElectReading,
                                         BigDecimal preWaterReading, BigDecimal currentWaterReading,
+                                        String bankAccount,
                                         List<InvoiceLineResponse> lines) {
     }
 

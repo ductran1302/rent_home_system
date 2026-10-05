@@ -48,6 +48,7 @@ export interface InvoiceDetail {
   currentElectReading: number | null
   preWaterReading: number | null
   currentWaterReading: number | null
+  bankAccount: string | null
   lines: InvoiceLine[]
 }
 
@@ -114,6 +115,11 @@ export default function InvoiceDrawer({
   const [paymentForm] = Form.useForm<{ amount: number }>()
   const [roomPriceForm] = Form.useForm<RoomPriceFormValues>()
   const [readingsForm] = Form.useForm<ReadingsFormValues>()
+  const [qrBroken, setQrBroken] = useState(false)
+
+  useEffect(() => {
+    setQrBroken(false)
+  }, [invoiceId])
 
   const detailQuery = useQuery({
     queryKey: ['invoice', invoiceId],
@@ -187,11 +193,19 @@ export default function InvoiceDrawer({
   const remaining = detail ? detail.totalAmount - detail.paidAmount : 0
   const roomLineAmount = detail?.lines.find((line) => line.feeCode === 'PHONG')?.amount ?? null
   const canEdit = canManage && detail != null && detail.status !== 'PAID'
-  const unitElect = feeTypesQuery.data?.find((type) => type.code === 'DIEN')?.unit
-  const unitWater = feeTypesQuery.data?.find((type) => type.code === 'NUOC')?.unit
+  const displayUnit = (unit?: string) => {
+    const upper = unit?.toUpperCase()
+    if (upper === 'KWH') return 'kWh'
+    if (upper === 'M3') return 'm³'
+    return unit
+  }
+  const unitElect = displayUnit(feeTypesQuery.data?.find((type) => type.code === 'DIEN')?.unit)
+  const unitWater = displayUnit(feeTypesQuery.data?.find((type) => type.code === 'NUOC')?.unit)
   const sortedLines = [...(detail?.lines ?? [])].sort(
     (a, b) => (LINE_META[a.feeCode]?.order ?? 5) - (LINE_META[b.feeCode]?.order ?? 5),
   )
+  const qrMonth = detail ? Number(detail.period.slice(5)) : null
+  const qrContent = detail ? `${detail.roomNumber} TIEN PHONG THANG ${qrMonth}` : ''
 
   const updateRoomPriceMutation = useMutation({
     mutationFn: async (values: RoomPriceFormValues) =>
@@ -641,6 +655,34 @@ export default function InvoiceDrawer({
               </Typography.Text>
             )}
           />
+
+          {detail && !canManage && detail.bankAccount && remaining > 0 && (
+            <div style={{ marginTop: 24, textAlign: 'center' }}>
+              <Typography.Title level={5} style={{ marginBottom: 12 }}>
+                Mã chuyển tiền
+              </Typography.Title>
+              {!qrBroken ? (
+                <img
+                  src={`https://img.vietqr.io/image/VCB-${detail.bankAccount}-qr_only.png?amount=${remaining}&addInfo=${encodeURIComponent(qrContent)}`}
+                  alt="Mã QR chuyển tiền"
+                  width={220}
+                  height={220}
+                  style={{ maxWidth: '100%' }}
+                  onError={() => setQrBroken(true)}
+                />
+              ) : (
+                <Typography.Text type="warning">
+                  Không tải được mã QR, vui lòng chuyển {formatVnd(remaining)} theo thông tin dưới đây
+                </Typography.Text>
+              )}
+              <div style={{ marginTop: 8 }}>
+                <Typography.Text>
+                  Số tài khoản {detail.bankAccount}, nội dung:{' '}
+                </Typography.Text>
+                <Typography.Text code>{qrContent}</Typography.Text>
+              </div>
+            </div>
+          )}
         </>
       )}
 

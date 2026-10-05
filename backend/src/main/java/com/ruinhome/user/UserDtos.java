@@ -20,6 +20,7 @@ public final class UserDtos {
             boolean enabled,
             LocalDate managerStartDate,
             LocalDate managerEndDate,
+            String bankAccount,
             LocalDateTime createdAt) {
     }
 
@@ -30,6 +31,7 @@ public final class UserDtos {
             Long personId,
             LocalDate managerStartDate,
             LocalDate managerEndDate,
+            @Size(max = 30) String bankAccount,
             Boolean enabled) {
     }
 
@@ -39,6 +41,7 @@ public final class UserDtos {
             Long personId,
             LocalDate managerStartDate,
             LocalDate managerEndDate,
+            @Size(max = 30) String bankAccount,
             Boolean enabled) {
     }
 
@@ -52,6 +55,7 @@ public final class UserDtos {
                 account.isEnabled(),
                 account.getManagerStartDate(),
                 account.getManagerEndDate(),
+                account.getBankAccount(),
                 account.getCreatedAt());
     }
 }

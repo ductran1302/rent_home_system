@@ -108,6 +108,8 @@ Migration qua Flyway, chỉ thêm `V<n>__*.sql` mới.
 
 **`V13__important_notice.sql`**: bảng `important_notice` (`title VARCHAR(200)`, `content VARCHAR(1000)`, `house_id` FK `house` nullable = thông báo toàn hệ thống, `starts_at` / `ends_at TIMESTAMPTZ` nullable, `active BOOLEAN`), index theo `house_id`.
 
+**`V14__user_bank_account.sql`**: cột `user_account.bank_account VARCHAR(30)` (số tài khoản Vietcombank, dùng sinh mã QR chuyển tiền cho khách thuê xem chi tiết hóa đơn).
+
 Quy ước cột: tiền `BIGINT` (VND không thập phân), ngày `DATE`, kỳ `VARCHAR(7)` dạng `YYYY-MM`, thời gian `TIMESTAMP`. Tên cột tiếng Anh, trùng với tên field Java.
 
 ## Luồng hóa đơn
@@ -142,7 +144,7 @@ fee_type (điện, nước, dịch vụ, ...)
 | `api/client.ts` | axios `baseURL: '/api'`, gắn JWT từ `localStorage`, `401` thì xoá token và chuyển `/login` |
 | `auth/` | `AuthProvider` nạp `/api/auth/me`, context cấp `me` và `logout` |
 | `components/` | `AppLayout` (menu theo vai trò, header), `ProtectedRoute`, `RoleRoute` (chặn trang theo vai trò), skeleton, khung ảnh hợp đồng, `PhotoUpload` (upload và xem ảnh tài sản, ảnh trước và sau lần sửa, tải blob có token), `ContractAssetDrawer` (bàn giao và thu hồi tài sản của hợp đồng), `NotificationBell` (chuông thông báo), `NoticeTicker` (thanh chạy đỏ hiển thị thông báo quan trọng, tự cuộn khi tràn, tạm dừng khi rê chuột) |
-| `components/billing/` | `InvoiceDrawer`, `MeterModal`, `FeeRateModal` |
+| `components/billing/` | `InvoiceDrawer` (chi tiết hóa đơn, kèm mục Mã QR VietQR cho khách thuê khi còn nợ), `MeterModal`, `FeeRateModal` |
 | `pages/` | `Login`, `Register`, `Home`, `Houses`, `Persons`, `Contracts`, `Assets`, `Billing`, `Accounts`, `Notices` |
 | `utils/format.ts` | Formatter tiền VND dùng chung |
 | `utils/asset.ts` | Nhóm tài sản, tình trạng, trạng thái sửa chữa, loại ảnh và nhãn tiếng Việt dùng chung |

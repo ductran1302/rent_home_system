@@ -9,6 +9,8 @@ import com.ruinhome.house.House;
 import com.ruinhome.room.Room;
 import com.ruinhome.room.RoomRepository;
 import com.ruinhome.user.Role;
+import com.ruinhome.user.UserAccount;
+import com.ruinhome.user.UserAccountRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -40,6 +42,7 @@ public class InvoiceService {
     private final MeterReadingRepository meterReadingRepository;
     private final CurrentUserService currentUserService;
     private final InvoiceNotifier invoiceNotifier;
+    private final UserAccountRepository userAccountRepository;
 
     public InvoiceService(InvoiceRepository invoiceRepository, ContractRepository contractRepository,
                           ContractFeePriceRepository contractFeePriceRepository,
@@ -47,7 +50,8 @@ public class InvoiceService {
                           FeeRateRepository feeRateRepository,
                           MeterReadingRepository meterReadingRepository,
                           CurrentUserService currentUserService,
-                          InvoiceNotifier invoiceNotifier) {
+                          InvoiceNotifier invoiceNotifier,
+                          UserAccountRepository userAccountRepository) {
         this.invoiceRepository = invoiceRepository;
         this.contractRepository = contractRepository;
         this.contractFeePriceRepository = contractFeePriceRepository;
@@ -57,6 +61,7 @@ public class InvoiceService {
         this.meterReadingRepository = meterReadingRepository;
         this.currentUserService = currentUserService;
         this.invoiceNotifier = invoiceNotifier;
+        this.userAccountRepository = userAccountRepository;
     }
 
     @Transactional
@@ -547,6 +552,18 @@ public class InvoiceService {
                 invoice.getCurrentElectReading(),
                 invoice.getPreWaterReading(),
                 invoice.getCurrentWaterReading(),
+                resolveOwnerBankAccount(invoice),
                 lines);
+    }
+
+    private String resolveOwnerBankAccount(Invoice invoice) {
+        var owner = invoice.getRoom().getHouse().getOwner();
+        if (owner == null) {
+            return null;
+        }
+        return userAccountRepository
+                .findFirstByPersonIdAndBankAccountIsNotNullOrderByIdAsc(owner.getId())
+                .map(UserAccount::getBankAccount)
+                .orElse(null);
     }
 }

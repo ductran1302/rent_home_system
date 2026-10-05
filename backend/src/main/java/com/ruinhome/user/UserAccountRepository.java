@@ -18,6 +18,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
 
     boolean existsByPersonIdAndEnabledTrue(Long personId);
 
+    Optional<UserAccount> findFirstByPersonIdAndBankAccountIsNotNullOrderByIdAsc(Long personId);
+
     @Query("select a from UserAccount a left join fetch a.person order by a.id")
     List<UserAccount> findAllWithPerson();
 
