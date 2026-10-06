@@ -204,8 +204,12 @@ Chỉ số nhập ở đây được chép vào hóa đơn (`currentElectReading
 | POST | `/api/billing/invoices/{id}/lines` | ADMIN, MANAGER | `{ feeTypeId*, quantity*, unitPrice*, description }` | Dòng tiền |
 | PUT | `/api/billing/invoices/{id}/lines/{lineId}` | ADMIN, MANAGER | `{ quantity*, unitPrice* }` | Dòng tiền |
 | DELETE | `/api/billing/invoices/{id}/lines/{lineId}` | ADMIN, MANAGER | | Hóa đơn kèm `lines` |
+| GET | `/api/billing/invoices/debts` | ADMIN, MANAGER | `level`, `houseId`, `page`, `size` | Phân trang công nợ (chỉ `UNPAID` / `PARTIAL`), sắp xếp đến hạn tăng dần |
+| PUT | `/api/billing/invoices/{id}/due-date` | ADMIN | `{ dueDate* }` (yyyy-MM-dd) | Hóa đơn với ngày đến hạn mới (`406` khi hóa đơn đã đóng đủ) |
 
 Trạng thái hóa đơn: `DRAFT` (mới sinh) `publish` sang `UNPAID`, thu một phần thành `PARTIAL`, đủ tiền thành `PAID`. Khóa `totalAmount` tính lại theo các dòng tiền.
+
+**Công nợ**: hóa đơn có cột `due_date` (mặc định = ngày phát hành cộng 7 ngày, cột cũ được backfill từ `created_at`). `GET /debts` tính mức công nợ từ số ngày quá hạn: chưa đến hạn `NOT_DUE` (`< 0`), `OVERDUE` (`0-6` ngày, nhãn "Quá hạn"), `LATE` (`7-14` ngày, nhãn "Chậm"), `DEBT` (`>= 15` ngày, nhãn "Nợ"); tham số `level` lọc theo mức, mặc định trả tất cả các mức. `ADMIN` thấy công nợ theo khu vực, `MANAGER` thấy công nợ nhà mình là chủ hoặc quản lý (cùng scope với danh sách hóa đơn), `USER` trả `403`. `PUT /due-date` cho phép admin sửa ngày đến hạn của hóa đơn chưa đóng đủ để điều chỉnh cảnh báo; hóa đơn `PAID` trả `406`.
 
 `room-price` đổi đơn giá dòng tiền phòng (dòng có `feeCode = PHONG`), ghi `note` vào `roomPriceNote`, tính lại `totalAmount` và trạng thái; hóa đơn `PAID` trả `409`. `contractRent` trong chi tiết là giá phòng theo hợp đồng phủ kỳ hóa đơn, dùng để so với giá đang áp dụng.
 

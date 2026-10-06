@@ -17,6 +17,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +35,9 @@ public class Invoice extends BaseEntity {
 
     @Column(name = "period", nullable = false, length = 7)
     private String period;
+
+    @Column(name = "due_date")
+    private LocalDate dueDate;
 
     @Column(name = "total_amount", nullable = false)
     private Long totalAmount = 0L;

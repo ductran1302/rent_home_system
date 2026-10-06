@@ -46,6 +46,28 @@ public class InvoiceController {
         return invoiceService.get(id);
     }
 
+    @GetMapping("/debts")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
+    public Map<String, Object> debts(
+            @RequestParam(required = false) DebtLevel level,
+            @RequestParam(required = false) Long houseId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        var result = invoiceService.debts(level, houseId, page, Math.min(size, 100));
+        return Map.of(
+                "items", result.getContent(),
+                "total", result.getTotalElements(),
+                "page", result.getNumber(),
+                "size", result.getSize());
+    }
+
+    @PutMapping("/{id}/due-date")
+    @PreAuthorize("hasRole('ADMIN')")
+    public BillingDtos.DueDateResponse updateDueDate(@PathVariable Long id,
+                                                     @Valid @RequestBody BillingDtos.DueDateRequest request) {
+        return invoiceService.updateDueDate(id, request);
+    }
+
     @PostMapping("/generate")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER')")
     public BillingDtos.GenerateResponse generate(@RequestParam String period) {

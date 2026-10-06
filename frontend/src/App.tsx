@@ -12,6 +12,7 @@ const HousesPage = lazy(() => import('./pages/HousesPage'))
 const PersonsPage = lazy(() => import('./pages/PersonsPage'))
 const ContractsPage = lazy(() => import('./pages/ContractsPage'))
 const BillingPage = lazy(() => import('./pages/BillingPage'))
+const DebtsPage = lazy(() => import('./pages/DebtsPage'))
 const AssetsPage = lazy(() => import('./pages/AssetsPage'))
 const AccountsPage = lazy(() => import('./pages/AccountsPage'))
 const NoticesPage = lazy(() => import('./pages/NoticesPage'))
@@ -49,6 +50,14 @@ export default function App() {
           />
           <Route path="contracts" element={<ContractsPage />} />
           <Route path="billing" element={<BillingPage />} />
+          <Route
+            path="debts"
+            element={
+              <RoleRoute roles={['ADMIN', 'MANAGER']}>
+                <DebtsPage />
+              </RoleRoute>
+            }
+          />
           <Route
             path="assets"
             element={

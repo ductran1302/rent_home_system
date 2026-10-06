@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -105,4 +106,23 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
                                             @Param("ownerScope") Long ownerScope,
                                             @Param("userScope") Long userScope,
                                             @Param("areaScope") String areaScope);
+
+    @Query("""
+            select i from Invoice i
+              join fetch i.room r
+              join fetch r.house h
+            where i.status in (com.ruinhome.billing.InvoiceStatus.UNPAID,
+                               com.ruinhome.billing.InvoiceStatus.PARTIAL)
+              and (:houseId is null or h.id = :houseId)
+              and i.dueDate >= :dueFrom
+              and i.dueDate <= :dueTo
+              and (:ownerScope is null or h.owner.id = :ownerScope or h.manager.id = :ownerScope)
+              and (:areaScope is null or h.areaAdmin = :areaScope)
+            """)
+    Page<Invoice> findDebts(@Param("houseId") Long houseId,
+                            @Param("dueFrom") LocalDate dueFrom,
+                            @Param("dueTo") LocalDate dueTo,
+                            @Param("ownerScope") Long ownerScope,
+                            @Param("areaScope") String areaScope,
+                            Pageable pageable);
 }

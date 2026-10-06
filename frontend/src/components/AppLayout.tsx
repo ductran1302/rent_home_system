@@ -1,4 +1,5 @@
 import {
+  AccountBookOutlined,
   ApartmentOutlined,
   FileTextOutlined,
   DollarOutlined,
@@ -62,6 +63,9 @@ export default function AppLayout() {
         ]),
     { key: '/contracts', icon: <FileTextOutlined />, label: 'Hợp đồng' },
     { key: '/billing', icon: <DollarOutlined />, label: 'Hóa đơn' },
+    ...(canManage
+      ? [{ key: '/debts', icon: <AccountBookOutlined />, label: 'Công nợ' }]
+      : []),
     ...(canManage
       ? [
           {

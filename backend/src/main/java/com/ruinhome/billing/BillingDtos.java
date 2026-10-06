@@ -7,6 +7,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
 public final class BillingDtos {
@@ -98,5 +99,19 @@ public final class BillingDtos {
     }
 
     public record GenerateResponse(int created, List<GenerateSkip> skipped) {
+    }
+
+    // Debt tracking
+    public record DebtResponse(Long invoiceId, Long roomId, Long houseId, String houseName,
+                               String roomNumber, String period, String tenantName,
+                               Long totalAmount, Long paidAmount, Long remainingAmount,
+                               InvoiceStatus status, LocalDate dueDate, int overdueDays,
+                               DebtLevel level) {
+    }
+
+    public record DueDateRequest(@NotNull LocalDate dueDate) {
+    }
+
+    public record DueDateResponse(Long id, LocalDate dueDate) {
     }
 }

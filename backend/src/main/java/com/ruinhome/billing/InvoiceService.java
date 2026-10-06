@@ -96,6 +96,53 @@ public class InvoiceService {
         return toDetailResponse(invoice);
     }
 
+    @Transactional(readOnly = true)
+    public Page<BillingDtos.DebtResponse> debts(DebtLevel level, Long houseId, int page, int size) {
+        Long ownerScope = null;
+        String areaScope = null;
+        var account = currentUserService.account();
+        if (account.getRole() == Role.ADMIN) {
+            areaScope = currentUserService.areaOrNull();
+        } else if (account.getRole() == Role.MANAGER) {
+            ownerScope = currentUserService.personId();
+        } else {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Chỉ quản trị viên và quản lý xem công nợ");
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate dueFrom = LocalDate.of(1900, 1, 1);
+        LocalDate dueTo = LocalDate.of(2999, 12, 31);
+        if (level == DebtLevel.NOT_DUE) {
+            dueFrom = today.plusDays(1);
+        } else if (level == DebtLevel.OVERDUE) {
+            dueFrom = today.minusDays(6);
+            dueTo = today;
+        } else if (level == DebtLevel.LATE) {
+            dueFrom = today.minusDays(14);
+            dueTo = today.minusDays(7);
+        } else if (level == DebtLevel.DEBT) {
+            dueTo = today.minusDays(15);
+        }
+
+        var pageable = PageRequest.of(page, size,
+                Sort.by(Sort.Direction.ASC, "dueDate").and(Sort.by("id")));
+        return invoiceRepository.findDebts(houseId, dueFrom, dueTo, ownerScope, areaScope, pageable)
+                .map(invoice -> toDebtResponse(invoice, today));
+    }
+
+    @Transactional
+    public BillingDtos.DueDateResponse updateDueDate(Long id, BillingDtos.DueDateRequest request) {
+        Invoice invoice = findManageable(id);
+        if (invoice.getStatus() != InvoiceStatus.UNPAID && invoice.getStatus() != InvoiceStatus.PARTIAL) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Chỉ sửa ngày đến hạn của hóa đơn chưa đóng đủ");
+        }
+        invoice.setDueDate(request.dueDate());
+        Invoice saved = invoiceRepository.save(invoice);
+        return new BillingDtos.DueDateResponse(saved.getId(), saved.getDueDate());
+    }
+
     @Transactional
     public BillingDtos.GenerateResponse generate(String period) {
         BillingSupport.validatePeriod(period);
@@ -142,6 +189,7 @@ public class InvoiceService {
             Invoice invoice = new Invoice();
             invoice.setRoom(room);
             invoice.setPeriod(period);
+            invoice.setDueDate(LocalDate.now().plusDays(7));
             invoice.setStatus(InvoiceStatus.DRAFT);
             invoice.setTotalAmount(0L);
 
@@ -175,6 +223,9 @@ public class InvoiceService {
                     "Chỉ phát hành được hóa đơn nháp");
         }
         invoice.setStatus(InvoiceStatus.UNPAID);
+        if (invoice.getDueDate() == null) {
+            invoice.setDueDate(LocalDate.now().plusDays(7));
+        }
         Invoice saved = invoiceRepository.save(invoice);
         invoiceNotifier.onInvoicePublished(saved.getId());
         return toDetailResponse(saved);
@@ -500,6 +551,46 @@ public class InvoiceService {
         if (!personId.equals(house.getOwner().getId()) && !personId.equals(house.getManager().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Bạn không có quyền với nhà này");
         }
+    }
+
+    private BillingDtos.DebtResponse toDebtResponse(Invoice invoice, LocalDate today) {
+        Room room = invoice.getRoom();
+        LocalDate dueDate = invoice.getDueDate();
+        long overdue = dueDate == null ? 0 : java.time.temporal.ChronoUnit.DAYS.between(dueDate, today);
+        DebtLevel level;
+        if (dueDate == null || overdue < 0) {
+            level = DebtLevel.NOT_DUE;
+        } else if (overdue >= 15) {
+            level = DebtLevel.DEBT;
+        } else if (overdue >= 7) {
+            level = DebtLevel.LATE;
+        } else {
+            level = DebtLevel.OVERDUE;
+        }
+        long remaining = Math.max(0, invoice.getTotalAmount() - invoice.getPaidAmount());
+        return new BillingDtos.DebtResponse(
+                invoice.getId(),
+                room.getId(),
+                room.getHouse().getId(),
+                room.getHouse().getName(),
+                room.getRoomNumber(),
+                invoice.getPeriod(),
+                resolveTenantName(invoice),
+                invoice.getTotalAmount(),
+                invoice.getPaidAmount(),
+                remaining,
+                invoice.getStatus(),
+                dueDate,
+                overdue > 0 ? (int) overdue : 0,
+                level);
+    }
+
+    private String resolveTenantName(Invoice invoice) {
+        YearMonth period = YearMonth.parse(invoice.getPeriod());
+        return contractRepository
+                .findFirstCoveringPeriod(invoice.getRoom().getId(), period.atDay(1), period.atEndOfMonth())
+                .map(contract -> contract.getHolder() == null ? null : contract.getHolder().getFullName())
+                .orElse(null);
     }
 
     private BillingDtos.InvoiceResponse toResponse(Invoice invoice) {
