@@ -9,6 +9,13 @@
   --page-bg: #000000;
 }
 
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
 body {
   margin: 0;
   min-width: 320px;

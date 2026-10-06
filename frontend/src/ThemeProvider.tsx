@@ -1,7 +1,7 @@
 import { ConfigProvider, theme } from 'antd'
 import type { ThemeConfig } from 'antd'
 import viVN from 'antd/locale/vi_VN'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import ThemeContext, { type ThemeMode } from './theme-context'
 
 const STORAGE_KEY = 'theme-mode'
@@ -36,7 +36,7 @@ function getInitialMode(): ThemeMode {
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<ThemeMode>(getInitialMode)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = mode
     try {
       window.localStorage.setItem(STORAGE_KEY, mode)
@@ -46,7 +46,12 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
   }, [mode])
 
   const toggleMode = useCallback(() => {
+    const root = document.documentElement
+    root.classList.add('theme-switching')
     setMode((current) => (current === 'light' ? 'dark' : 'light'))
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => root.classList.remove('theme-switching'))
+    })
   }, [])
 
   const contextValue = useMemo(() => ({ mode, toggleMode }), [mode, toggleMode])
