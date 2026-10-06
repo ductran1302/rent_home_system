@@ -20,6 +20,7 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Empty,
   Row,
   Skeleton,
@@ -28,6 +29,9 @@ import {
   Typography,
 } from 'antd'
 import { useQuery } from '@tanstack/react-query'
+import dayjs from 'dayjs'
+import type { Dayjs } from 'dayjs'
+import { useState } from 'react'
 import { api, getErrorMessage } from '../api/client'
 import { useAuth } from '../auth/context'
 import { formatNumber, formatVnd } from '../utils/format'
@@ -83,6 +87,7 @@ export default function HomePage() {
   const { me } = useAuth()
   const { token } = theme.useToken()
   const isUser = me?.role === 'USER'
+  const [year, setYear] = useState(() => new Date().getFullYear())
 
   const statsQuery = useQuery({
     queryKey: ['stats'],
@@ -90,8 +95,8 @@ export default function HomePage() {
   })
 
   const revenueQuery = useQuery({
-    queryKey: ['stats', 'revenue'],
-    queryFn: async () => (await api.get<RevenueResponse>('/stats/revenue')).data,
+    queryKey: ['stats', 'revenue', year],
+    queryFn: async () => (await api.get<RevenueResponse>('/stats/revenue', { params: { year } })).data,
   })
 
   if (statsQuery.isLoading) {
@@ -129,6 +134,7 @@ export default function HomePage() {
     collected: month.collected,
     outstanding: month.outstanding,
   }))
+  const hasRevenueData = chartData.some((month) => month.collected > 0 || month.outstanding > 0)
 
   return (
     <div>
@@ -202,8 +208,19 @@ export default function HomePage() {
         </Col>
       </Row>
       <Card
-        title={
-          revenueQuery.data ? `Hóa đơn theo năm ${revenueQuery.data.year}` : 'Hóa đơn theo năm'
+        title={`Hóa đơn theo năm ${year}`}
+        extra={
+          <DatePicker
+            picker="year"
+            allowClear={false}
+            format="YYYY"
+            value={dayjs(String(year))}
+            onChange={(value: Dayjs | null) => {
+              if (value) {
+                setYear(value.year())
+              }
+            }}
+          />
         }
         style={{ marginTop: 16 }}
       >
@@ -216,6 +233,11 @@ export default function HomePage() {
           >
             <Button onClick={() => revenueQuery.refetch()}>Thử lại</Button>
           </Empty>
+        ) : !hasRevenueData ? (
+          <Empty
+            style={{ margin: '48px 0' }}
+            description={`Chưa có hóa đơn nào trong năm ${year}.`}
+          />
         ) : (
           <div style={{ width: '100%', height: 360 }}>
             <ResponsiveContainer width="100%" height="100%">
